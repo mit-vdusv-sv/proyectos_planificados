@@ -163,7 +163,7 @@
       <div class="kpi"><span>Total viviendas</span><strong id="kpiHomes">0</strong><small>Viviendas/beneficiarios directos planificados</small></div>
       <div class="kpi"><span>Beneficiarios indirectos</span><strong id="kpiIndirect">0</strong><small>Suma nacional filtrada</small></div>
       <div class="kpi"><span>Valor estimado</span><strong id="kpiValue">$0</strong><small>Valor referencial de los proyectos</small></div>
-      <div class="kpi"><span>Convenios suscritos</span><strong id="kpiSigned">0</strong><small>Convenios únicos en columna CONVENIO</small></div>
+      <div class="kpi"><span>Convenios suscritos</span><strong id="kpiSigned">0</strong><small>Convenios totales</small></div>
       <div class="kpi"><span>Alertas graves</span><strong id="kpiSevere">0</strong><small>Tipo de alerta grave</small></div>
     </section>
 
@@ -191,7 +191,7 @@
           <table>
             <thead>
               <tr>
-                <th>Segmento</th><th>Provincia</th><th>Cantón</th><th>Viviendas</th><th>Benef. indirectos</th><th>Alerta</th><th>Estado</th><th>Financiamiento</th><th>Valor</th><th>Tipo alerta</th><th>Próximas acciones</th>
+                <th>Segmento</th><th>Provincia</th><th>Cantón</th><th>Viviendas</th><th>Alerta</th><th>Estado</th><th>Financiamiento</th><th>Valor</th><th>Tipo alerta</th><th>Próximas acciones</th>
               </tr>
             </thead>
             <tbody id="detailBody"></tbody>
@@ -333,7 +333,7 @@
       viviendas3d,
       totalViviendas,
       beneficiarios,
-      indirectos: toNumber(cell(row,C.indirectos)),
+      indirectos: totalViviendas * 3,
       estadoPlanMasa: sheet.component === '1B' ? String(cell(row,C.estadoPlanMasa) ?? '').trim() : '',
       estadoBanco: sheet.component === '1B' ? String(cell(row,C.estadoBanco) ?? '').trim() : '',
       convenioSuscrito: String(cell(row,C.convenioSuscrito) ?? '').trim(),
@@ -450,7 +450,7 @@
   function updateKPIs(){
     $('kpiProjects').textContent = numFmt.format(filteredData.length);
     $('kpiHomes').textContent = numFmt.format(sum(filteredData,'totalViviendas'));
-    $('kpiIndirect').textContent = numFmt.format(sum(filteredData,'indirectos'));
+    $('kpiIndirect').textContent = numFmt.format(sum(filteredData,'totalViviendas') * 3);
     $('kpiValue').textContent = moneyFmt.format(sum(filteredData,'valor'));
     $('kpiSigned').textContent = numFmt.format(countUniqueConvenios(filteredData));
     $('kpiSevere').textContent = numFmt.format(filteredData.filter(d=>normalizeText(d.tipoAlerta).includes('GRAVE')).length);
@@ -467,7 +467,64 @@
       ctx.fillStyle = '#172033';
       ctx.textBaseline = 'middle';
       if(chart.config.type === 'doughnut'){
-        // Se evita escribir porcentajes dentro del pastel para que no se superpongan.
+        const dataset = data.datasets[0];
+        const values = (dataset.data || []).map(v => Number(v) || 0);
+        const total = values.reduce((a,b)=>a+b,0);
+        if(!total){ ctx.restore(); return; }
+        const meta = chart.getDatasetMeta(0);
+        const chartArea = chart.chartArea || {top:0,bottom:chart.height,left:0,right:chart.width};
+        const minY = chartArea.top + 10;
+        const maxY = chartArea.bottom - 10;
+        const labelItems = [];
+
+        meta.data.forEach((arc,i)=>{
+          const value = values[i];
+          if(!value) return;
+          const p = arc.getProps(['x','y','startAngle','endAngle','outerRadius'], true);
+          const angle = (p.startAngle + p.endAngle) / 2;
+          const side = Math.cos(angle) >= 0 ? 1 : -1;
+          const pct = (value / total * 100).toLocaleString('es-EC',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%';
+          labelItems.push({
+            i, value, pct, side, angle,
+            cx:p.x, cy:p.y, r:p.outerRadius,
+            y: Math.max(minY, Math.min(maxY, p.y + Math.sin(angle) * (p.outerRadius + 24)))
+          });
+        });
+
+        [-1,1].forEach(side=>{
+          const items = labelItems.filter(x=>x.side===side).sort((a,b)=>a.y-b.y);
+          const gap = 19;
+          for(let i=1;i<items.length;i++){
+            if(items[i].y - items[i-1].y < gap) items[i].y = items[i-1].y + gap;
+          }
+          for(let i=items.length-2;i>=0;i--){
+            if(items[i].y > maxY - (items.length-1-i)*gap) items[i].y = Math.max(minY, items[i+1].y - gap);
+          }
+        });
+
+        ctx.font = 'bold 10px Inter, system-ui, sans-serif';
+        ctx.lineWidth = 1.2;
+        labelItems.forEach(item=>{
+          const color = dataset.backgroundColor?.[item.i] || '#172033';
+          const x0 = item.cx + Math.cos(item.angle) * (item.r - 1);
+          const y0 = item.cy + Math.sin(item.angle) * (item.r - 1);
+          const x1 = item.cx + Math.cos(item.angle) * (item.r + 12);
+          const y1 = item.cy + Math.sin(item.angle) * (item.r + 12);
+          const x2 = item.cx + item.side * (item.r + 48);
+          const textX = x2 + item.side * 4;
+
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(x0,y0);
+          ctx.lineTo(x1,y1);
+          ctx.lineTo(x2,item.y);
+          ctx.stroke();
+
+          ctx.textAlign = item.side === 1 ? 'left' : 'right';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${item.pct} (${numFmt.format(item.value)})`, textX, item.y);
+        });
       }else if(config.horizontal){
         ctx.textAlign = 'left';
         const meta = chart.getDatasetMeta(0);
@@ -528,10 +585,10 @@
         interaction:{mode:'nearest',intersect:false},
         plugins:{
           legend:{display:datasets.length>1 || isDoughnut,position:'bottom',labels:{boxWidth:18,usePointStyle:false}},
-          labelPlugin:{display:options.valueLabels === true && !isDoughnut, horizontal, money:options.money},
+          labelPlugin:{display:options.valueLabels === true || isDoughnut, horizontal, money:options.money},
           tooltip:{callbacks:{label:ctx=>{const total=(ctx.dataset.data||[]).reduce((a,b)=>a+(Number(b)||0),0); const pct=total ? ' ('+(Number(ctx.raw)/total*100).toLocaleString('es-EC',{maximumFractionDigits:1})+'%)' : ''; return `${ctx.label || ctx.dataset.label}: ${options.money ? moneyFmt.format(ctx.raw) : numFmt.format(ctx.raw)}${isDoughnut ? pct : ''}`;}}}
         },
-        layout:{padding: horizontal ? {right:55} : (isDoughnut ? {top:10,bottom:6,left:18,right:18} : {})},
+        layout:{padding: horizontal ? {right:55} : (isDoughnut ? {top:24,bottom:34,left:78,right:78} : {})},
         cutout: isDoughnut ? '58%' : undefined,
         scales: isDoughnut ? {} : (horizontal ? {
           x:{beginAtZero:true,ticks:{callback:v=>options.money?moneyFmt.format(v):numFmt.format(v)}},
@@ -567,7 +624,6 @@
       {label:'Convenios suscritos',value:countUniqueConvenios(filteredData)},
       {label:'Transferencia recursos',value:filteredData.filter(d=>normalizeText(d.transferenciaRecursos)==='SI').length},
       {label:'Terreno identificado',value:filteredData.filter(d=>normalizeText(d.terrenoIdentificado)==='SI').length},
-      {label:'Beneficiarios',value:filteredData.filter(d=>normalizeText(d.beneficiariosOk)==='SI').length},
       {label:'Plan masa',value:filteredData.filter(d=>normalizeText(d.planMasa)==='SI').length}
     ];
     makeChart('milestoneChart','bar',milestones.map(x=>x.label),[{label:'Registros',data:milestones.map(x=>x.value)}],{horizontal:true,valueLabels:true});
@@ -626,14 +682,13 @@
       <td>${escapeHtml(d.provincia)}</td>
       <td>${escapeHtml(d.canton)}</td>
       <td>${numFmt.format(d.totalViviendas)}</td>
-      <td>${numFmt.format(d.indirectos)}</td>
       <td class="wrap">${escapeHtml(d.alerta || 'Sin dato')}</td>
       <td>${escapeHtml(d.estadoConvenio)}</td>
       <td>${escapeHtml(d.financiamiento)}</td>
       <td>${moneyFmt.format(d.valor)}</td>
       <td>${alertBadge(d.tipoAlerta)}</td>
       <td class="wrap">${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
-    </tr>`).join('') || '<tr><td colspan="11">No hay datos para los filtros seleccionados.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="10">No hay datos para los filtros seleccionados.</td></tr>';
   }
 
   function downloadFilteredCSV(){
