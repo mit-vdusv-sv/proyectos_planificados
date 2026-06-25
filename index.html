@@ -146,7 +146,7 @@
     </section>
 
     <section class="filters">
-      <div class="field"><label for="componentFilter">Componente</label><select id="componentFilter"><option value="">Todos</option></select></div>
+      <div class="field"><label for="componentFilter">Segmento</label><select id="componentFilter"><option value="">Todos</option></select></div>
       <div class="field"><label for="provinciaFilter">Provincia</label><select id="provinciaFilter"><option value="">Todas</option></select></div>
       <div class="field"><label for="cantonFilter">Cantón</label><select id="cantonFilter"><option value="">Todos</option></select></div>
       <div class="field"><label for="estadoConvenioFilter">Estado convenio</label><select id="estadoConvenioFilter"><option value="">Todos</option></select></div>
@@ -163,7 +163,7 @@
       <div class="kpi"><span>Total viviendas</span><strong id="kpiHomes">0</strong><small>Viviendas/beneficiarios directos planificados</small></div>
       <div class="kpi"><span>Beneficiarios indirectos</span><strong id="kpiIndirect">0</strong><small>Suma nacional filtrada</small></div>
       <div class="kpi"><span>Valor estimado</span><strong id="kpiValue">$0</strong><small>Valor referencial de los proyectos</small></div>
-      <div class="kpi"><span>Convenios suscritos</span><strong id="kpiSigned">0</strong><small>Registros con convenio = SI</small></div>
+      <div class="kpi"><span>Convenios suscritos</span><strong id="kpiSigned">0</strong><small>Convenios únicos en columna CONVENIO</small></div>
       <div class="kpi"><span>Alertas graves</span><strong id="kpiSevere">0</strong><small>Tipo de alerta grave</small></div>
     </section>
 
@@ -173,7 +173,7 @@
     </section>
 
     <section class="grid-3">
-      <div class="card"><h2>Proyectos por componente</h2><div class="chart-wrap sm"><canvas id="componentChart"></canvas></div></div>
+      <div class="card"><h2>Proyectos por segmento</h2><div class="chart-wrap sm"><canvas id="componentChart"></canvas></div></div>
       <div class="card"><h2>Estado de convenio</h2><div class="chart-wrap sm"><canvas id="statusChart"></canvas></div></div>
       <div class="card"><h2>Tipo de alerta</h2><div class="chart-wrap sm"><canvas id="alertChart"></canvas></div></div>
     </section>
@@ -191,7 +191,7 @@
           <table>
             <thead>
               <tr>
-                <th>Componente</th><th>Provincia</th><th>Cantón</th><th>Viviendas</th><th>Benef. indirectos</th><th>Convenio</th><th>Estado</th><th>Financiamiento</th><th>Valor</th><th>Alerta</th><th>Próximas acciones</th>
+                <th>Segmento</th><th>Provincia</th><th>Cantón</th><th>Viviendas</th><th>Benef. indirectos</th><th>Alerta</th><th>Estado</th><th>Financiamiento</th><th>Valor</th><th>Tipo alerta</th><th>Próximas acciones</th>
               </tr>
             </thead>
             <tbody id="detailBody"></tbody>
@@ -429,13 +429,30 @@
     data.forEach(d=>{const k=d[key]||'Sin dato'; m.set(k,(m.get(k)||0)+(Number(d[sumKey])||0));});
     return [...m.entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
   }
+
+  function validConvenioName(value){
+    const raw = String(value ?? '').trim();
+    const n = normalizeText(raw);
+    if(!raw) return '';
+    if(['NO','SI','SIN DATO','N/A','NA','-','PENDIENTE'].includes(n)) return '';
+    return raw;
+  }
+
+  function countUniqueConvenios(data){
+    const set = new Set();
+    data.forEach(d=>{
+      const name = validConvenioName(d.convenio);
+      if(name) set.add(normalizeText(name));
+    });
+    return set.size;
+  }
   function yesCount(key){return filteredData.filter(d=>normalizeText(d[key])==='SI').length;}
   function updateKPIs(){
     $('kpiProjects').textContent = numFmt.format(filteredData.length);
     $('kpiHomes').textContent = numFmt.format(sum(filteredData,'totalViviendas'));
     $('kpiIndirect').textContent = numFmt.format(sum(filteredData,'indirectos'));
     $('kpiValue').textContent = moneyFmt.format(sum(filteredData,'valor'));
-    $('kpiSigned').textContent = numFmt.format(filteredData.filter(d=>normalizeText(d.convenioSuscrito)==='SI').length);
+    $('kpiSigned').textContent = numFmt.format(countUniqueConvenios(filteredData));
     $('kpiSevere').textContent = numFmt.format(filteredData.filter(d=>normalizeText(d.tipoAlerta).includes('GRAVE')).length);
   }
 
@@ -450,22 +467,7 @@
       ctx.fillStyle = '#172033';
       ctx.textBaseline = 'middle';
       if(chart.config.type === 'doughnut'){
-        const total = data.datasets[0].data.reduce((a,b)=>a+(Number(b)||0),0);
-        const meta = chart.getDatasetMeta(0);
-        ctx.textAlign = 'center';
-        meta.data.forEach((arc,i)=>{
-          const value = Number(data.datasets[0].data[i]) || 0;
-          if(!value || !total) return;
-          const p = arc.getProps(['x','y','startAngle','endAngle','outerRadius','innerRadius'], true);
-          const angle = (p.startAngle+p.endAngle)/2;
-          const r = (p.outerRadius+p.innerRadius)/2;
-          const x = p.x + Math.cos(angle)*r;
-          const y = p.y + Math.sin(angle)*r;
-          ctx.fillText((value/total*100).toLocaleString('es-EC',{maximumFractionDigits:1})+'%',x,y-7);
-          ctx.font='10px Inter, system-ui, sans-serif';
-          ctx.fillText('('+numFmt.format(value)+')',x,y+8);
-          ctx.font='bold 11px Inter, system-ui, sans-serif';
-        });
+        // Se evita escribir porcentajes dentro del pastel para que no se superpongan.
       }else if(config.horizontal){
         ctx.textAlign = 'left';
         const meta = chart.getDatasetMeta(0);
@@ -481,14 +483,26 @@
   if(window.Chart && !Chart.registry.plugins.get('labelPlugin')) Chart.register(labelPlugin);
 
   const forestPalette = ['#14532d','#166534','#15803d','#16a34a','#22c55e','#65a30d','#84cc16','#4d7c0f'];
+  const categoricalPalette = ['#14532d','#eab308','#dc2626','#2563eb','#7c3aed','#ea580c','#0891b2','#be123c','#4d7c0f','#9333ea'];
 
-  function applyChartPalette(type, datasets){
+  function colorForLabel(label, index){
+    const n = normalizeText(label);
+    if(n.includes('GRAVE') || n.includes('ALTO')) return '#dc2626';
+    if(n.includes('MEDIA') || n.includes('MEDIO')) return '#eab308';
+    if(n.includes('BAJO')) return '#16a34a';
+    if(n === '1A') return '#eab308';
+    if(n === '1B') return '#14532d';
+    return categoricalPalette[index % categoricalPalette.length];
+  }
+
+  function applyChartPalette(type, labels, datasets){
     return datasets.map((ds, idx) => {
       const out = {...ds};
       if(type === 'doughnut'){
-        out.backgroundColor = (out.data || []).map((_, i) => forestPalette[i % forestPalette.length]);
+        out.backgroundColor = (labels || []).map((label, i) => colorForLabel(label, i));
         out.borderColor = '#ffffff';
-        out.borderWidth = 2;
+        out.borderWidth = 3;
+        out.hoverOffset = 8;
       }else{
         out.backgroundColor = forestPalette[idx % forestPalette.length];
         out.borderColor = forestPalette[idx % forestPalette.length];
@@ -503,7 +517,7 @@
     if(charts[id]) charts[id].destroy();
     const horizontal = options.horizontal === true;
     const isDoughnut = type === 'doughnut';
-    const styledDatasets = applyChartPalette(type, datasets);
+    const styledDatasets = applyChartPalette(type, labels, datasets);
     charts[id] = new Chart($(id),{
       type,
       data:{labels,datasets:styledDatasets},
@@ -513,11 +527,12 @@
         indexAxis: horizontal ? 'y' : 'x',
         interaction:{mode:'nearest',intersect:false},
         plugins:{
-          legend:{display:datasets.length>1 || isDoughnut,position:'bottom'},
-          labelPlugin:{display:options.valueLabels === true || isDoughnut, horizontal, money:options.money},
-          tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label || ctx.label}: ${options.money ? moneyFmt.format(ctx.raw) : numFmt.format(ctx.raw)}`}}
+          legend:{display:datasets.length>1 || isDoughnut,position:'bottom',labels:{boxWidth:18,usePointStyle:false}},
+          labelPlugin:{display:options.valueLabels === true && !isDoughnut, horizontal, money:options.money},
+          tooltip:{callbacks:{label:ctx=>{const total=(ctx.dataset.data||[]).reduce((a,b)=>a+(Number(b)||0),0); const pct=total ? ' ('+(Number(ctx.raw)/total*100).toLocaleString('es-EC',{maximumFractionDigits:1})+'%)' : ''; return `${ctx.label || ctx.dataset.label}: ${options.money ? moneyFmt.format(ctx.raw) : numFmt.format(ctx.raw)}${isDoughnut ? pct : ''}`;}}}
         },
-        layout:{padding: horizontal ? {right:55} : (isDoughnut ? {top:16,bottom:16,left:16,right:16} : {})},
+        layout:{padding: horizontal ? {right:55} : (isDoughnut ? {top:10,bottom:6,left:18,right:18} : {})},
+        cutout: isDoughnut ? '58%' : undefined,
         scales: isDoughnut ? {} : (horizontal ? {
           x:{beginAtZero:true,ticks:{callback:v=>options.money?moneyFmt.format(v):numFmt.format(v)}},
           y:{type:'category',grid:{display:false},ticks:{autoSkip:false}}
@@ -549,7 +564,7 @@
     makeChart('typologyChart','bar',typo.map(x=>x.label),[{label:'Proyectos',data:typo.map(x=>x.value)}],{horizontal:true,valueLabels:true});
 
     const milestones = [
-      {label:'Convenio suscrito',value:filteredData.filter(d=>normalizeText(d.convenioSuscrito)==='SI').length},
+      {label:'Convenios suscritos',value:countUniqueConvenios(filteredData)},
       {label:'Transferencia recursos',value:filteredData.filter(d=>normalizeText(d.transferenciaRecursos)==='SI').length},
       {label:'Terreno identificado',value:filteredData.filter(d=>normalizeText(d.terrenoIdentificado)==='SI').length},
       {label:'Beneficiarios',value:filteredData.filter(d=>normalizeText(d.beneficiariosOk)==='SI').length},
@@ -582,7 +597,7 @@
         color:'#ffffff',weight:1.4,fillColor:alertColor(d.tipoAlerta),fillOpacity:.78
       });
       marker.bindTooltip(`<b>${escapeHtml(d.provincia)} / ${escapeHtml(d.canton)}</b><br>${escapeHtml(d.componente)} · ${numFmt.format(d.totalViviendas)} viviendas<br>Alerta: ${escapeHtml(d.tipoAlerta)}`,{sticky:true});
-      marker.bindPopup(`<b>${escapeHtml(d.provincia)} - ${escapeHtml(d.canton)}</b><br><b>Componente:</b> ${escapeHtml(d.componente)}<br><b>Viviendas:</b> ${numFmt.format(d.totalViviendas)}<br><b>Convenio:</b> ${escapeHtml(d.convenio || 'Sin dato')}<br><b>Estado:</b> ${escapeHtml(d.estadoConvenio)}<br><b>Alerta:</b> ${escapeHtml(d.tipoAlerta)}<br><b>Próximas acciones:</b><br>${escapeHtml(d.proximasAcciones || 'Sin dato')}`);
+      marker.bindPopup(`<b>${escapeHtml(d.provincia)} - ${escapeHtml(d.canton)}</b><br><b>Segmento:</b> ${escapeHtml(d.componente)}<br><b>Viviendas:</b> ${numFmt.format(d.totalViviendas)}<br><b>Convenio:</b> ${escapeHtml(d.convenio || 'Sin dato')}<br><b>Estado:</b> ${escapeHtml(d.estadoConvenio)}<br><b>Alerta:</b> ${escapeHtml(d.tipoAlerta)}<br><b>Próximas acciones:</b><br>${escapeHtml(d.proximasAcciones || 'Sin dato')}`);
       markersLayer.addLayer(marker);
     });
     if(points.length){
@@ -612,7 +627,7 @@
       <td>${escapeHtml(d.canton)}</td>
       <td>${numFmt.format(d.totalViviendas)}</td>
       <td>${numFmt.format(d.indirectos)}</td>
-      <td>${escapeHtml(d.convenio || d.convenioSuscrito || 'Sin dato')}</td>
+      <td class="wrap">${escapeHtml(d.alerta || 'Sin dato')}</td>
       <td>${escapeHtml(d.estadoConvenio)}</td>
       <td>${escapeHtml(d.financiamiento)}</td>
       <td>${moneyFmt.format(d.valor)}</td>
@@ -622,8 +637,8 @@
   }
 
   function downloadFilteredCSV(){
-    const headers = ['COMPONENTE','PROVINCIA','CANTON','VIVIENDAS','BENEFICIARIOS_INDIRECTOS','CONVENIO_SUSCRITO','CONVENIO','ESTADO_CONVENIO','FINANCIAMIENTO','VALOR','TIPOLOGIA','TIPO_ALERTA','LONGITUD','LATITUD','PROXIMAS_ACCIONES'];
-    const rows = filteredData.map(d=>[d.componente,d.provincia,d.canton,d.totalViviendas,d.indirectos,d.convenioSuscrito,d.convenio,d.estadoConvenio,d.financiamiento,d.valor,d.tipologia,d.tipoAlerta,d.longitud,d.latitud,d.proximasAcciones]);
+    const headers = ['SEGMENTO','PROVINCIA','CANTON','VIVIENDAS','BENEFICIARIOS_INDIRECTOS','ALERTA','TIPO_ALERTA','PROXIMAS_ACCIONES','CONVENIO_SUSCRITO','CONVENIO','ESTADO_CONVENIO','FINANCIAMIENTO','VALOR','TIPOLOGIA','LONGITUD','LATITUD'];
+    const rows = filteredData.map(d=>[d.componente,d.provincia,d.canton,d.totalViviendas,d.indirectos,d.alerta,d.tipoAlerta,d.proximasAcciones,d.convenioSuscrito,d.convenio,d.estadoConvenio,d.financiamiento,d.valor,d.tipologia,d.longitud,d.latitud]);
     const csv = [headers,...rows].map(r=>r.map(v=>'"'+String(v ?? '').replace(/"/g,'""')+'"').join(',')).join('\n');
     const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
