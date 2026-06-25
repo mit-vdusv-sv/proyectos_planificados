@@ -173,7 +173,7 @@
     </section>
 
     <section class="grid-3">
-      <div class="card"><h2>Proyectos por segmento</h2><div class="chart-wrap sm"><canvas id="componentChart"></canvas></div></div>
+      <div class="card"><h2>Viviendas por segmento</h2><div class="chart-wrap sm"><canvas id="componentChart"></canvas></div></div>
       <div class="card"><h2>Estado de convenio</h2><div class="chart-wrap sm"><canvas id="statusChart"></canvas></div></div>
       <div class="card"><h2>Tipo de alerta</h2><div class="chart-wrap sm"><canvas id="alertChart"></canvas></div></div>
     </section>
@@ -548,8 +548,8 @@
     const prov = groupSum(filteredData,'provincia','totalViviendas').slice(0,14);
     makeChart('provinceChart','bar',prov.map(x=>x.label),[{label:'Viviendas',data:prov.map(x=>x.value)}],{horizontal:true,valueLabels:true});
 
-    const comps = groupCount(filteredData,'componente');
-    makeChart('componentChart','doughnut',comps.map(x=>x.label),[{label:'Proyectos',data:comps.map(x=>x.value)}],{});
+    const comps = groupSum(filteredData,'componente','totalViviendas');
+    makeChart('componentChart','doughnut',comps.map(x=>x.label),[{label:'Viviendas',data:comps.map(x=>x.value)}],{});
 
     const statuses = groupCount(filteredData,'estadoConvenio').slice(0,8);
     makeChart('statusChart','bar',statuses.map(x=>x.label),[{label:'Proyectos',data:statuses.map(x=>x.value)}],{horizontal:true,valueLabels:true});
@@ -596,8 +596,8 @@
         radius: Math.max(5, Math.min(13, 4 + Math.sqrt(Number(d.totalViviendas)||1)/2)),
         color:'#ffffff',weight:1.4,fillColor:alertColor(d.tipoAlerta),fillOpacity:.78
       });
-      marker.bindTooltip(`<b>${escapeHtml(d.provincia)} / ${escapeHtml(d.canton)}</b><br>${escapeHtml(d.componente)} · ${numFmt.format(d.totalViviendas)} viviendas<br>Alerta: ${escapeHtml(d.tipoAlerta)}`,{sticky:true});
-      marker.bindPopup(`<b>${escapeHtml(d.provincia)} - ${escapeHtml(d.canton)}</b><br><b>Segmento:</b> ${escapeHtml(d.componente)}<br><b>Viviendas:</b> ${numFmt.format(d.totalViviendas)}<br><b>Convenio:</b> ${escapeHtml(d.convenio || 'Sin dato')}<br><b>Estado:</b> ${escapeHtml(d.estadoConvenio)}<br><b>Alerta:</b> ${escapeHtml(d.tipoAlerta)}<br><b>Próximas acciones:</b><br>${escapeHtml(d.proximasAcciones || 'Sin dato')}`);
+      marker.bindTooltip(`<b>${escapeHtml(d.provincia)} / ${escapeHtml(d.canton)}</b><br>${escapeHtml(d.componente)} · ${numFmt.format(d.totalViviendas)} viviendas<br><b>Tipo de alerta:</b> ${escapeHtml(d.tipoAlerta)}<br><b>Valor:</b> ${moneyFmt.format(d.valor || 0)}`,{sticky:true});
+      marker.bindPopup(`<b>${escapeHtml(d.provincia)} - ${escapeHtml(d.canton)}</b><br><b>Segmento:</b> ${escapeHtml(d.componente)}<br><b>Viviendas:</b> ${numFmt.format(d.totalViviendas)}<br><b>Convenio:</b> ${escapeHtml(d.convenio || 'Sin dato')}<br><b>Estado:</b> ${escapeHtml(d.estadoConvenio)}<br><b>Tipo de alerta:</b> ${escapeHtml(d.tipoAlerta)}<br><b>Valor del proyecto:</b> ${moneyFmt.format(d.valor || 0)}<br><b>Alerta:</b><br>${escapeHtml(d.alerta || 'Sin dato')}<br><b>Próximas acciones:</b><br>${escapeHtml(d.proximasAcciones || 'Sin dato')}`);
       markersLayer.addLayer(marker);
     });
     if(points.length){
