@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#14532d">
+  <title>Dashboard de Proyectos Planificados</title>
+
+  <link rel="preconnect" href="https://docs.google.com" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root{
+      --bg:#f4f7fb;
+      --card:#ffffff;
+      --text:#172033;
+      --muted:#667085;
+      --line:#e6eaf2;
+      --primary:#14532d;
+      --primary-2:#052e16;
+      --primary-3:#166534;
+      --accent:#eab308;
+      --danger:#dc2626;
+      --ok:#16a34a;
+      --warn:#f59e0b;
+      --shadow:0 10px 28px rgba(15,23,42,.08);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .app{max-width:1440px;margin:0 auto;padding:18px}
+    .topbar{
+      background:linear-gradient(135deg,#14532d,#052e16 62%,#0b1f13);
+      color:white;
+      border-radius:24px;
+      padding:22px 24px;
+      box-shadow:var(--shadow);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+    }
+    .title h1{font-size:clamp(22px,3vw,34px);margin:0;font-weight:850;letter-spacing:-.04em}
+    .title p{margin:7px 0 0;color:rgba(255,255,255,.82);font-size:14px;line-height:1.35}
+    .status{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;font-size:13px;color:rgba(255,255,255,.84)}
+    .pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:8px 12px;white-space:nowrap}
+    .refresh-btn,.download-btn{border:0;border-radius:999px;padding:9px 14px;font-weight:850;cursor:pointer;box-shadow:0 6px 14px rgba(0,0,0,.12)}
+    .refresh-btn{background:#fff;color:var(--primary)}
+    .download-btn{background:var(--accent);color:#172033}
+
+    .filters{
+      margin-top:16px;
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:14px;
+      display:grid;
+      grid-template-columns:repeat(8,1fr);
+      gap:12px;
+      position:sticky;
+      top:8px;
+      z-index:900;
+    }
+    .field label{display:block;font-size:12px;color:var(--muted);font-weight:750;margin:0 0 6px}
+    select,input{width:100%;height:40px;border:1px solid var(--line);border-radius:12px;padding:0 10px;background:white;color:var(--text);font:inherit;outline:none}
+    select:focus,input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(20,83,45,.15)}
+    .actions{display:flex;gap:8px;align-items:end}
+    .clear-btn{width:100%;height:40px;border:1px solid var(--line);background:#f8fafc;border-radius:12px;font-weight:800;color:#334155;cursor:pointer}
+
+    .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:16px}
+    .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);min-width:0}
+    .kpi span{font-size:12px;color:var(--muted);font-weight:850;text-transform:uppercase;letter-spacing:.05em}
+    .kpi strong{display:block;margin-top:8px;font-size:clamp(22px,2.6vw,32px);letter-spacing:-.04em;line-height:1.05}
+    .kpi small{display:block;margin-top:6px;color:var(--muted);line-height:1.3}
+
+    .grid{display:grid;grid-template-columns:1.25fr .95fr;gap:14px;margin-top:14px}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+    .grid.full-width{grid-template-columns:1fr}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;min-width:0}
+    .card h2{margin:0 0 12px;font-size:17px;letter-spacing:-.02em}
+    .chart-wrap{height:330px;position:relative}
+    .chart-wrap.sm{height:290px}
+    #map{height:360px;border-radius:14px;overflow:hidden;background:#e5edf5}
+    .note{font-size:12px;color:var(--muted);margin-top:9px;line-height:1.4}
+    .map-legend{margin-top:10px;display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+    .legend-item{display:flex;align-items:center;gap:5px}
+    .legend-dot{width:11px;height:11px;border-radius:50%;border:1px solid rgba(15,23,42,.15)}
+    .table-wrap{max-height:395px;overflow:auto;border:1px solid var(--line);border-radius:14px}
+    table{border-collapse:collapse;width:100%;font-size:13px;background:white}
+    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:top}
+    th{position:sticky;top:0;background:#f8fafc;z-index:1;color:#475569;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+    td.wrap{white-space:normal;min-width:260px;max-width:520px;line-height:1.35}
+    .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;background:#ecfdf5;color:#14532d;white-space:nowrap}
+    .badge.low{background:#dcfce7;color:#166534}
+    .badge.mid{background:#fef3c7;color:#92400e}
+    .badge.high{background:#fee2e2;color:#991b1b}
+    .loader{position:fixed;inset:0;background:rgba(244,247,251,.86);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(5px)}
+    .loader-box{background:white;border:1px solid var(--line);border-radius:20px;padding:20px 24px;box-shadow:var(--shadow);font-weight:850;color:var(--primary)}
+    .error{display:none;margin-top:14px;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;border-radius:14px;padding:12px;font-size:14px}
+    .leaflet-control-attribution{font-size:10px}
+
+    @media(max-width:1180px){
+      .filters{grid-template-columns:repeat(4,1fr);position:static}
+      .actions{grid-column:auto}
+      .kpis{grid-template-columns:repeat(3,1fr)}
+      .grid,.grid-3{grid-template-columns:1fr}
+    }
+    @media(max-width:740px){
+      .app{padding:10px}
+      .topbar{border-radius:18px;align-items:flex-start;flex-direction:column;padding:18px}
+      .status{justify-content:flex-start;width:100%}
+      .refresh-btn,.download-btn{flex:1}
+      .filters{grid-template-columns:1fr;padding:12px;gap:10px}
+      .kpis{grid-template-columns:1fr;gap:10px}
+      .card,.kpi{padding:13px;border-radius:16px}
+      .chart-wrap,.chart-wrap.sm,#map{height:310px}
+      th,td{padding:8px;font-size:12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="loader" id="loader"><div class="loader-box">Cargando proyectos planificados desde Google Sheets...</div></div>
+
+  <main class="app">
+    <section class="topbar">
+      <div class="title">
+        <h1>Dashboard de Proyectos Planificados</h1>
+        <p>Seguimiento de proyectos 1A y 1B: viviendas, beneficiarios, convenios, financiamiento, alertas y ubicación territorial.</p>
+      </div>
+      <div class="status">
+        <span class="pill" id="lastUpdate">Sin actualizar</span>
+        <button class="download-btn" onclick="downloadFilteredCSV()">Descargar base filtrada</button>
+        <button class="refresh-btn" onclick="loadData()">Actualizar</button>
+      </div>
+    </section>
+
+    <section class="filters">
+      <div class="field"><label for="componentFilter">Componente</label><select id="componentFilter"><option value="">Todos</option></select></div>
+      <div class="field"><label for="provinciaFilter">Provincia</label><select id="provinciaFilter"><option value="">Todas</option></select></div>
+      <div class="field"><label for="cantonFilter">Cantón</label><select id="cantonFilter"><option value="">Todos</option></select></div>
+      <div class="field"><label for="estadoConvenioFilter">Estado convenio</label><select id="estadoConvenioFilter"><option value="">Todos</option></select></div>
+      <div class="field"><label for="financiamientoFilter">Financiamiento</label><select id="financiamientoFilter"><option value="">Todos</option></select></div>
+      <div class="field"><label for="tipoAlertaFilter">Tipo de alerta</label><select id="tipoAlertaFilter"><option value="">Todas</option></select></div>
+      <div class="field"><label for="convenioFilter">Convenio suscrito</label><select id="convenioFilter"><option value="">Todos</option></select></div>
+      <div class="actions"><button class="clear-btn" onclick="resetFilters()">Limpiar filtros</button></div>
+    </section>
+
+    <div class="error" id="errorBox"></div>
+
+    <section class="kpis">
+      <div class="kpi"><span>Total proyectos</span><strong id="kpiProjects">0</strong><small>Registros 1A + 1B</small></div>
+      <div class="kpi"><span>Total viviendas</span><strong id="kpiHomes">0</strong><small>Viviendas/beneficiarios directos planificados</small></div>
+      <div class="kpi"><span>Beneficiarios indirectos</span><strong id="kpiIndirect">0</strong><small>Suma nacional filtrada</small></div>
+      <div class="kpi"><span>Valor estimado</span><strong id="kpiValue">$0</strong><small>Valor referencial de los proyectos</small></div>
+      <div class="kpi"><span>Convenios suscritos</span><strong id="kpiSigned">0</strong><small>Registros con convenio = SI</small></div>
+      <div class="kpi"><span>Alertas graves</span><strong id="kpiSevere">0</strong><small>Tipo de alerta grave</small></div>
+    </section>
+
+    <section class="grid">
+      <div class="card"><h2>Viviendas planificadas por provincia</h2><div class="chart-wrap"><canvas id="provinceChart"></canvas></div></div>
+      <div class="card"><h2>Mapa de proyectos georreferenciados</h2><div id="map"></div><div class="map-legend" id="mapLegend"></div><p class="note">Los puntos se muestran cuando cada hoja contiene longitud y latitud válidas; 1A y 1B se leen con sus columnas propias.</p></div>
+    </section>
+
+    <section class="grid-3">
+      <div class="card"><h2>Proyectos por componente</h2><div class="chart-wrap sm"><canvas id="componentChart"></canvas></div></div>
+      <div class="card"><h2>Estado de convenio</h2><div class="chart-wrap sm"><canvas id="statusChart"></canvas></div></div>
+      <div class="card"><h2>Tipo de alerta</h2><div class="chart-wrap sm"><canvas id="alertChart"></canvas></div></div>
+    </section>
+
+    <section class="grid-3">
+      <div class="card"><h2>Financiamiento</h2><div class="chart-wrap sm"><canvas id="financeChart"></canvas></div></div>
+      <div class="card"><h2>Tipología</h2><div class="chart-wrap sm"><canvas id="typologyChart"></canvas></div></div>
+      <div class="card"><h2>Avance de insumos clave</h2><div class="chart-wrap sm"><canvas id="milestoneChart"></canvas></div></div>
+    </section>
+
+    <section class="grid full-width">
+      <div class="card">
+        <h2>Detalle de proyectos filtrados</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Componente</th><th>Provincia</th><th>Cantón</th><th>Viviendas</th><th>Benef. indirectos</th><th>Convenio</th><th>Estado</th><th>Financiamiento</th><th>Valor</th><th>Alerta</th><th>Próximas acciones</th>
+              </tr>
+            </thead>
+            <tbody id="detailBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const SHEET_ID = '1wLZgLbHR6Lr-XCn-U9TAp9jgMTn240OSwmubatAKHQM';
+  const SHEETS = [
+    // Se usa rango calificado y entre comillas porque los nombres de hoja "1A" y "1B" empiezan con número;
+    // si se consulta solo con sheet=1A/1B, Google puede devolver el gid activo o interpretar mal el nombre.
+    {name:'1B', component:'1B', range:'A:AD'},
+    {name:'1A', component:'1A', range:'A:T'}
+  ];
+
+  const COL_1B = {
+    provincia:0, canton:1, viviendas2d:2, viviendas3d:3, totalViviendas:4,
+    beneficiarios:5, indirectos:6, estadoPlanMasa:7, predioBanco:8,
+    estadoBanco:9, observacionBanco:10, convenioSuscrito:11, convenio:12,
+    administrador:13, estadoConvenio:14, fechaSuscripcion:15, fechaInicio:16,
+    plazo:17, financiamiento:18, valor:19, terrenoIdentificado:20,
+    longitud:21, latitud:22, transferenciaRecursos:23, beneficiariosOk:24,
+    planMasa:25, tipologia:26, alerta:27, tipoAlerta:28, proximasAcciones:29
+  };
+
+  const COL_1A = {
+    provincia:0, canton:1, beneficiarios:2, indirectos:3, tipologia:4,
+    convenioSuscrito:5, convenio:6, administrador:7, estadoConvenio:8,
+    fechaSuscripcion:9, fechaInicio:10, plazo:11, financiamiento:12,
+    valor:13, longitud:14, latitud:15, transferenciaRecursos:16,
+    alerta:17, tipoAlerta:18, proximasAcciones:19
+  };
+
+  let rawData = [];
+  let filteredData = [];
+  let charts = {};
+  let map, markersLayer;
+
+  const $ = id => document.getElementById(id);
+  const numFmt = new Intl.NumberFormat('es-EC');
+  const moneyFmt = new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
+
+  function normalizeText(v){return String(v ?? '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').toUpperCase();}
+  function escapeHtml(s){return String(s ?? '').replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+  function toNumber(v){
+    if(v === null || v === undefined || v === '') return 0;
+    if(typeof v === 'number') return Number.isFinite(v) ? v : 0;
+    let s = String(v).trim();
+    if(!s || ['NA','N/A','-'].includes(normalizeText(s))) return 0;
+    s = s.replace(/[^0-9,.-]/g,'');
+    if(!s || s === '-') return 0;
+    const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.');
+    if(lastComma > -1 && lastDot > -1){
+      s = lastComma > lastDot ? s.replace(/\./g,'').replace(',', '.') : s.replace(/,/g,'');
+    }else if(lastComma > -1){
+      const decimals = s.length - lastComma - 1;
+      s = decimals > 0 && decimals <= 2 ? s.replace(',', '.') : s.replace(/,/g,'');
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  function parseDate(v, f){
+    const value = f ?? v;
+    if(value === null || value === undefined || value === '') return null;
+    if(typeof value === 'string'){
+      let m = value.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+      if(m) return new Date(Number(m[1]), Number(m[2]), Number(m[3]));
+      m = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if(m){
+        const a=Number(m[1]), b=Number(m[2]), y=Number(m[3]);
+        const day = a > 12 ? a : (b > 12 ? b : a);
+        const mon = a > 12 ? b : (b > 12 ? a : b);
+        const d = new Date(y, mon-1, day);
+        return isNaN(d) ? null : d;
+      }
+    }
+    if(typeof value === 'number' && value > 20000 && value < 70000){
+      const d = new Date(Math.round((value - 25569) * 86400 * 1000));
+      return isNaN(d) ? null : d;
+    }
+    return null;
+  }
+  function formatDate(d){return d ? d.toLocaleDateString('es-EC') : '';}
+  function sum(data,key){return data.reduce((a,d)=>a+(Number(d[key])||0),0);}
+  function uniqueSorted(arr){return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));}
+  function showError(msg){const box=$('errorBox'); if(!msg){box.style.display='none';box.textContent='';return;} box.textContent=msg; box.style.display='block';}
+
+  function gvizUrl(sheet){
+    const qualifiedRange = `'${sheet.name}'!${sheet.range}`;
+    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=1&range=${encodeURIComponent(qualifiedRange)}&cacheBust=${Date.now()}`;
+  }
+  async function fetchSheet(sheet){
+    const res = await fetch(gvizUrl(sheet));
+    if(!res.ok) throw new Error(`No se pudo leer la hoja ${sheet.name}. Verifica que el Google Sheets esté compartido públicamente.`);
+    const txt = await res.text();
+    const match = txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
+    if(!match) throw new Error(`La hoja ${sheet.name} no devolvió datos válidos.`);
+    const json = JSON.parse(match[1]);
+    const rows = json.table?.rows || [];
+    return rows.map(row => rowToObject(row, sheet)).filter(Boolean);
+  }
+  function cell(row, i){const c = (row.c || [])[i] || {}; return c.v ?? c.f ?? '';}
+  function cellDate(row, i){const c = (row.c || [])[i] || {}; return parseDate(c.v, c.f);}
+
+  function rowToObject(row, sheet){
+    const C = sheet.component === '1B' ? COL_1B : COL_1A;
+    const provincia = String(cell(row,C.provincia) ?? '').trim();
+    const canton = String(cell(row,C.canton) ?? '').trim();
+    if(!provincia || !canton) return null;
+
+    let viviendas2d = 0, viviendas3d = 0, totalViviendas = 0, beneficiarios = 0;
+    if(sheet.component === '1B'){
+      viviendas2d = toNumber(cell(row,C.viviendas2d));
+      viviendas3d = toNumber(cell(row,C.viviendas3d));
+      totalViviendas = toNumber(cell(row,C.totalViviendas));
+      beneficiarios = toNumber(cell(row,C.beneficiarios));
+      if(!totalViviendas) totalViviendas = viviendas2d + viviendas3d || beneficiarios;
+    }else{
+      beneficiarios = toNumber(cell(row,C.beneficiarios));
+      totalViviendas = beneficiarios;
+      const tipo = normalizeText(cell(row,C.tipologia));
+      if(tipo.includes('2D')) viviendas2d = beneficiarios;
+      if(tipo.includes('3D')) viviendas3d = beneficiarios;
+    }
+
+    const lon = toNumber(cell(row,C.longitud));
+    const lat = toNumber(cell(row,C.latitud));
+    const fecha = cellDate(row,C.fechaSuscripcion);
+    const tipoAlerta = String(cell(row,C.tipoAlerta) ?? '').trim() || 'Sin alerta';
+
+    return {
+      componente: sheet.component,
+      provincia,
+      canton,
+      viviendas2d,
+      viviendas3d,
+      totalViviendas,
+      beneficiarios,
+      indirectos: toNumber(cell(row,C.indirectos)),
+      estadoPlanMasa: sheet.component === '1B' ? String(cell(row,C.estadoPlanMasa) ?? '').trim() : '',
+      estadoBanco: sheet.component === '1B' ? String(cell(row,C.estadoBanco) ?? '').trim() : '',
+      convenioSuscrito: String(cell(row,C.convenioSuscrito) ?? '').trim(),
+      convenio: String(cell(row,C.convenio) ?? '').trim(),
+      administrador: String(cell(row,C.administrador) ?? '').trim(),
+      estadoConvenio: String(cell(row,C.estadoConvenio) ?? '').trim() || 'Sin dato',
+      fechaSuscripcion: fecha,
+      fechaSuscripcionTxt: formatDate(fecha),
+      financiamiento: String(cell(row,C.financiamiento) ?? '').trim() || 'Sin dato',
+      valor: toNumber(cell(row,C.valor)),
+      terrenoIdentificado: sheet.component === '1B' ? String(cell(row,C.terrenoIdentificado) ?? '').trim() : '',
+      longitud: lon,
+      latitud: lat,
+      hasCoords: lon <= -65 && lon >= -85 && lat >= -6 && lat <= 2,
+      transferenciaRecursos: String(cell(row,C.transferenciaRecursos) ?? '').trim(),
+      beneficiariosOk: sheet.component === '1B' ? String(cell(row,C.beneficiariosOk) ?? '').trim() : '',
+      planMasa: sheet.component === '1B' ? String(cell(row,C.planMasa) ?? '').trim() : '',
+      tipologia: String(cell(row,C.tipologia) ?? '').trim() || 'Sin dato',
+      alerta: String(cell(row,C.alerta) ?? '').trim(),
+      tipoAlerta,
+      proximasAcciones: String(cell(row,C.proximasAcciones) ?? '').trim()
+    };
+  }
+
+  async function loadData(){
+    showError('');
+    $('loader').style.display='flex';
+    try{
+      const packs = await Promise.allSettled(SHEETS.map(fetchSheet));
+      const ok = packs.filter(x=>x.status==='fulfilled').flatMap(x=>x.value);
+      const failed = packs.filter(x=>x.status==='rejected').map(x=>x.reason?.message || String(x.reason));
+      if(!ok.length) throw new Error(failed.join(' | ') || 'No se pudo cargar información del Google Sheets.');
+      rawData = ok;
+      console.info('Proyectos cargados por componente:', rawData.reduce((acc,d)=>{acc[d.componente]=(acc[d.componente]||0)+1; return acc;}, {}));
+      console.info('Proyectos con coordenadas por componente:', rawData.filter(d=>d.hasCoords).reduce((acc,d)=>{acc[d.componente]=(acc[d.componente]||0)+1; return acc;}, {}));
+      if(failed.length) showError('Advertencia: ' + failed.join(' | '));
+      populateFilters();
+      setupMap();
+      applyFilters();
+      $('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleString('es-EC');
+    }catch(err){
+      console.error(err);
+      showError(err.message || 'Error al cargar los datos.');
+    }finally{
+      $('loader').style.display='none';
+    }
+  }
+
+  function setOptions(select, values, allLabel){
+    const current = select.value;
+    select.innerHTML = `<option value="">${allLabel}</option>` + values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    if(values.includes(current)) select.value = current;
+  }
+  function populateFilters(){
+    setOptions($('componentFilter'), uniqueSorted(rawData.map(d=>d.componente)), 'Todos');
+    setOptions($('provinciaFilter'), uniqueSorted(rawData.map(d=>d.provincia)), 'Todas');
+    setOptions($('estadoConvenioFilter'), uniqueSorted(rawData.map(d=>d.estadoConvenio)), 'Todos');
+    setOptions($('financiamientoFilter'), uniqueSorted(rawData.map(d=>d.financiamiento)), 'Todos');
+    setOptions($('tipoAlertaFilter'), uniqueSorted(rawData.map(d=>d.tipoAlerta)), 'Todas');
+    setOptions($('convenioFilter'), uniqueSorted(rawData.map(d=>d.convenioSuscrito)), 'Todos');
+    updateCantonOptions();
+  }
+  function updateCantonOptions(){
+    const p = $('provinciaFilter').value;
+    const comp = $('componentFilter').value;
+    let base = rawData;
+    if(comp) base = base.filter(d=>d.componente===comp);
+    if(p) base = base.filter(d=>d.provincia===p);
+    setOptions($('cantonFilter'), uniqueSorted(base.map(d=>d.canton)), 'Todos');
+  }
+  function applyFilters(){
+    const comp=$('componentFilter').value, p=$('provinciaFilter').value, c=$('cantonFilter').value;
+    const e=$('estadoConvenioFilter').value, f=$('financiamientoFilter').value, a=$('tipoAlertaFilter').value, conv=$('convenioFilter').value;
+    filteredData = rawData.filter(d=>(!comp||d.componente===comp)&&(!p||d.provincia===p)&&(!c||d.canton===c)&&(!e||d.estadoConvenio===e)&&(!f||d.financiamiento===f)&&(!a||d.tipoAlerta===a)&&(!conv||d.convenioSuscrito===conv));
+    updateKPIs();
+    updateCharts();
+    updateMap();
+    updateTable();
+  }
+  function resetFilters(){
+    ['componentFilter','provinciaFilter','cantonFilter','estadoConvenioFilter','financiamientoFilter','tipoAlertaFilter','convenioFilter'].forEach(id=>$(id).value='');
+    updateCantonOptions();
+    applyFilters();
+  }
+
+  function groupCount(data,key){
+    const m = new Map();
+    data.forEach(d=>{const k=d[key]||'Sin dato'; m.set(k,(m.get(k)||0)+1);});
+    return [...m.entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
+  }
+  function groupSum(data,key,sumKey){
+    const m = new Map();
+    data.forEach(d=>{const k=d[key]||'Sin dato'; m.set(k,(m.get(k)||0)+(Number(d[sumKey])||0));});
+    return [...m.entries()].map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
+  }
+  function yesCount(key){return filteredData.filter(d=>normalizeText(d[key])==='SI').length;}
+  function updateKPIs(){
+    $('kpiProjects').textContent = numFmt.format(filteredData.length);
+    $('kpiHomes').textContent = numFmt.format(sum(filteredData,'totalViviendas'));
+    $('kpiIndirect').textContent = numFmt.format(sum(filteredData,'indirectos'));
+    $('kpiValue').textContent = moneyFmt.format(sum(filteredData,'valor'));
+    $('kpiSigned').textContent = numFmt.format(filteredData.filter(d=>normalizeText(d.convenioSuscrito)==='SI').length);
+    $('kpiSevere').textContent = numFmt.format(filteredData.filter(d=>normalizeText(d.tipoAlerta).includes('GRAVE')).length);
+  }
+
+  const labelPlugin = {
+    id:'labelPlugin',
+    afterDatasetsDraw(chart,args,opts){
+      const config = chart.options.plugins?.labelPlugin || {};
+      if(!config.display) return;
+      const {ctx,data} = chart;
+      ctx.save();
+      ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+      ctx.fillStyle = '#172033';
+      ctx.textBaseline = 'middle';
+      if(chart.config.type === 'doughnut'){
+        const total = data.datasets[0].data.reduce((a,b)=>a+(Number(b)||0),0);
+        const meta = chart.getDatasetMeta(0);
+        ctx.textAlign = 'center';
+        meta.data.forEach((arc,i)=>{
+          const value = Number(data.datasets[0].data[i]) || 0;
+          if(!value || !total) return;
+          const p = arc.getProps(['x','y','startAngle','endAngle','outerRadius','innerRadius'], true);
+          const angle = (p.startAngle+p.endAngle)/2;
+          const r = (p.outerRadius+p.innerRadius)/2;
+          const x = p.x + Math.cos(angle)*r;
+          const y = p.y + Math.sin(angle)*r;
+          ctx.fillText((value/total*100).toLocaleString('es-EC',{maximumFractionDigits:1})+'%',x,y-7);
+          ctx.font='10px Inter, system-ui, sans-serif';
+          ctx.fillText('('+numFmt.format(value)+')',x,y+8);
+          ctx.font='bold 11px Inter, system-ui, sans-serif';
+        });
+      }else if(config.horizontal){
+        ctx.textAlign = 'left';
+        const meta = chart.getDatasetMeta(0);
+        meta.data.forEach((bar,i)=>{
+          const value = Number(data.datasets[0].data[i]) || 0;
+          const p = bar.tooltipPosition();
+          ctx.fillText(config.money ? moneyFmt.format(value) : numFmt.format(value), p.x + 6, p.y);
+        });
+      }
+      ctx.restore();
+    }
+  };
+  if(window.Chart && !Chart.registry.plugins.get('labelPlugin')) Chart.register(labelPlugin);
+
+  const forestPalette = ['#14532d','#166534','#15803d','#16a34a','#22c55e','#65a30d','#84cc16','#4d7c0f'];
+
+  function applyChartPalette(type, datasets){
+    return datasets.map((ds, idx) => {
+      const out = {...ds};
+      if(type === 'doughnut'){
+        out.backgroundColor = (out.data || []).map((_, i) => forestPalette[i % forestPalette.length]);
+        out.borderColor = '#ffffff';
+        out.borderWidth = 2;
+      }else{
+        out.backgroundColor = forestPalette[idx % forestPalette.length];
+        out.borderColor = forestPalette[idx % forestPalette.length];
+        out.pointBackgroundColor = forestPalette[idx % forestPalette.length];
+        out.pointBorderColor = '#ffffff';
+      }
+      return out;
+    });
+  }
+
+  function makeChart(id,type,labels,datasets,options={}){
+    if(charts[id]) charts[id].destroy();
+    const horizontal = options.horizontal === true;
+    const isDoughnut = type === 'doughnut';
+    const styledDatasets = applyChartPalette(type, datasets);
+    charts[id] = new Chart($(id),{
+      type,
+      data:{labels,datasets:styledDatasets},
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        indexAxis: horizontal ? 'y' : 'x',
+        interaction:{mode:'nearest',intersect:false},
+        plugins:{
+          legend:{display:datasets.length>1 || isDoughnut,position:'bottom'},
+          labelPlugin:{display:options.valueLabels === true || isDoughnut, horizontal, money:options.money},
+          tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label || ctx.label}: ${options.money ? moneyFmt.format(ctx.raw) : numFmt.format(ctx.raw)}`}}
+        },
+        layout:{padding: horizontal ? {right:55} : (isDoughnut ? {top:16,bottom:16,left:16,right:16} : {})},
+        scales: isDoughnut ? {} : (horizontal ? {
+          x:{beginAtZero:true,ticks:{callback:v=>options.money?moneyFmt.format(v):numFmt.format(v)}},
+          y:{type:'category',grid:{display:false},ticks:{autoSkip:false}}
+        } : {
+          x:{grid:{display:false},ticks:{autoSkip:true,maxRotation:35,minRotation:0}},
+          y:{beginAtZero:true,ticks:{callback:v=>options.money?moneyFmt.format(v):numFmt.format(v)}}
+        })
+      }
+    });
+  }
+
+  function updateCharts(){
+    const prov = groupSum(filteredData,'provincia','totalViviendas').slice(0,14);
+    makeChart('provinceChart','bar',prov.map(x=>x.label),[{label:'Viviendas',data:prov.map(x=>x.value)}],{horizontal:true,valueLabels:true});
+
+    const comps = groupCount(filteredData,'componente');
+    makeChart('componentChart','doughnut',comps.map(x=>x.label),[{label:'Proyectos',data:comps.map(x=>x.value)}],{});
+
+    const statuses = groupCount(filteredData,'estadoConvenio').slice(0,8);
+    makeChart('statusChart','bar',statuses.map(x=>x.label),[{label:'Proyectos',data:statuses.map(x=>x.value)}],{horizontal:true,valueLabels:true});
+
+    const alerts = groupCount(filteredData,'tipoAlerta');
+    makeChart('alertChart','doughnut',alerts.map(x=>x.label),[{label:'Proyectos',data:alerts.map(x=>x.value)}],{});
+
+    const finance = groupSum(filteredData,'financiamiento','valor').slice(0,8);
+    makeChart('financeChart','bar',finance.map(x=>x.label),[{label:'Valor',data:finance.map(x=>x.value)}],{horizontal:true,valueLabels:true,money:true});
+
+    const typo = groupCount(filteredData,'tipologia').slice(0,8);
+    makeChart('typologyChart','bar',typo.map(x=>x.label),[{label:'Proyectos',data:typo.map(x=>x.value)}],{horizontal:true,valueLabels:true});
+
+    const milestones = [
+      {label:'Convenio suscrito',value:filteredData.filter(d=>normalizeText(d.convenioSuscrito)==='SI').length},
+      {label:'Transferencia recursos',value:filteredData.filter(d=>normalizeText(d.transferenciaRecursos)==='SI').length},
+      {label:'Terreno identificado',value:filteredData.filter(d=>normalizeText(d.terrenoIdentificado)==='SI').length},
+      {label:'Beneficiarios',value:filteredData.filter(d=>normalizeText(d.beneficiariosOk)==='SI').length},
+      {label:'Plan masa',value:filteredData.filter(d=>normalizeText(d.planMasa)==='SI').length}
+    ];
+    makeChart('milestoneChart','bar',milestones.map(x=>x.label),[{label:'Registros',data:milestones.map(x=>x.value)}],{horizontal:true,valueLabels:true});
+  }
+
+  function setupMap(){
+    if(map) return;
+    map = L.map('map',{zoomControl:false,scrollWheelZoom:false}).setView([-1.7,-78.2],7);
+    L.control.zoom({position:'bottomright'}).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap'}).addTo(map);
+    markersLayer = L.layerGroup().addTo(map);
+  }
+  function alertColor(type){
+    const n = normalizeText(type);
+    if(n.includes('GRAVE') || n.includes('ALTO')) return '#dc2626';
+    if(n.includes('MEDIA') || n.includes('MEDIO')) return '#f59e0b';
+    if(n.includes('BAJO')) return '#16a34a';
+    return '#166534';
+  }
+  function updateMap(){
+    if(!map || !markersLayer) return;
+    markersLayer.clearLayers();
+    const points = filteredData.filter(d=>d.hasCoords);
+    points.forEach(d=>{
+      const marker = L.circleMarker([d.latitud,d.longitud],{
+        radius: Math.max(5, Math.min(13, 4 + Math.sqrt(Number(d.totalViviendas)||1)/2)),
+        color:'#ffffff',weight:1.4,fillColor:alertColor(d.tipoAlerta),fillOpacity:.78
+      });
+      marker.bindTooltip(`<b>${escapeHtml(d.provincia)} / ${escapeHtml(d.canton)}</b><br>${escapeHtml(d.componente)} · ${numFmt.format(d.totalViviendas)} viviendas<br>Alerta: ${escapeHtml(d.tipoAlerta)}`,{sticky:true});
+      marker.bindPopup(`<b>${escapeHtml(d.provincia)} - ${escapeHtml(d.canton)}</b><br><b>Componente:</b> ${escapeHtml(d.componente)}<br><b>Viviendas:</b> ${numFmt.format(d.totalViviendas)}<br><b>Convenio:</b> ${escapeHtml(d.convenio || 'Sin dato')}<br><b>Estado:</b> ${escapeHtml(d.estadoConvenio)}<br><b>Alerta:</b> ${escapeHtml(d.tipoAlerta)}<br><b>Próximas acciones:</b><br>${escapeHtml(d.proximasAcciones || 'Sin dato')}`);
+      markersLayer.addLayer(marker);
+    });
+    if(points.length){
+      try{map.fitBounds(L.latLngBounds(points.map(d=>[d.latitud,d.longitud])),{padding:[20,20],maxZoom:10});}catch(e){map.setView([-1.7,-78.2],7);}
+    }else{
+      map.setView([-1.7,-78.2],7);
+    }
+    $('mapLegend').innerHTML = `
+      <b>Alerta:</b>
+      <span class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>Bajo</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>Media</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#dc2626"></span>Grave/Alta</span>
+      <span>${numFmt.format(points.length)} proyectos con coordenadas</span>`;
+    setTimeout(()=>map.invalidateSize(),150);
+  }
+
+  function alertBadge(type){
+    const n = normalizeText(type);
+    const cls = n.includes('GRAVE') || n.includes('ALTO') ? 'high' : (n.includes('MEDIA') || n.includes('MEDIO') ? 'mid' : (n.includes('BAJO') ? 'low' : ''));
+    return `<span class="badge ${cls}">${escapeHtml(type || 'Sin alerta')}</span>`;
+  }
+  function updateTable(){
+    const rows = filteredData.slice().sort((a,b)=>b.totalViviendas-a.totalViviendas).slice(0,300);
+    $('detailBody').innerHTML = rows.map(d=>`<tr>
+      <td><span class="badge">${escapeHtml(d.componente)}</span></td>
+      <td>${escapeHtml(d.provincia)}</td>
+      <td>${escapeHtml(d.canton)}</td>
+      <td>${numFmt.format(d.totalViviendas)}</td>
+      <td>${numFmt.format(d.indirectos)}</td>
+      <td>${escapeHtml(d.convenio || d.convenioSuscrito || 'Sin dato')}</td>
+      <td>${escapeHtml(d.estadoConvenio)}</td>
+      <td>${escapeHtml(d.financiamiento)}</td>
+      <td>${moneyFmt.format(d.valor)}</td>
+      <td>${alertBadge(d.tipoAlerta)}</td>
+      <td class="wrap">${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
+    </tr>`).join('') || '<tr><td colspan="11">No hay datos para los filtros seleccionados.</td></tr>';
+  }
+
+  function downloadFilteredCSV(){
+    const headers = ['COMPONENTE','PROVINCIA','CANTON','VIVIENDAS','BENEFICIARIOS_INDIRECTOS','CONVENIO_SUSCRITO','CONVENIO','ESTADO_CONVENIO','FINANCIAMIENTO','VALOR','TIPOLOGIA','TIPO_ALERTA','LONGITUD','LATITUD','PROXIMAS_ACCIONES'];
+    const rows = filteredData.map(d=>[d.componente,d.provincia,d.canton,d.totalViviendas,d.indirectos,d.convenioSuscrito,d.convenio,d.estadoConvenio,d.financiamiento,d.valor,d.tipologia,d.tipoAlerta,d.longitud,d.latitud,d.proximasAcciones]);
+    const csv = [headers,...rows].map(r=>r.map(v=>'"'+String(v ?? '').replace(/"/g,'""')+'"').join(',')).join('\n');
+    const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'proyectos_planificados_filtrados.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  ['componentFilter','provinciaFilter'].forEach(id=>$(id).addEventListener('change',()=>{updateCantonOptions();applyFilters();}));
+  ['cantonFilter','estadoConvenioFilter','financiamientoFilter','tipoAlertaFilter','convenioFilter'].forEach(id=>$(id).addEventListener('change',applyFilters));
+
+  loadData();
+</script>
+</body>
+</html>
