@@ -223,7 +223,7 @@
     // Se usa rango calificado y entre comillas porque los nombres de hoja "1A" y "1B" empiezan con número;
     // si se consulta solo con sheet=1A/1B, Google puede devolver el gid activo o interpretar mal el nombre.
     {name:'1B', component:'1B', range:'A:AD'},
-    {name:'1A', component:'1A', range:'A:T'}
+    {name:'1A', component:'1A', range:'A:W'}
   ];
 
   const COL_1B = {
@@ -237,11 +237,12 @@
   };
 
   const COL_1A = {
-    provincia:0, canton:1, beneficiarios:2, indirectos:3, tipologia:4,
-    convenioSuscrito:5, convenio:6, administrador:7, estadoConvenio:8,
-    fechaSuscripcion:9, fechaInicio:10, plazo:11, financiamiento:12,
-    valor:13, longitud:14, latitud:15, transferenciaRecursos:16,
-    alerta:17, tipoAlerta:18, proximasAcciones:19
+    provincia:0, canton:1, beneficiarios:2, indirectos:3, viviendas2d:4,
+    viviendas3d:5, totalViviendas:6, convenioSuscrito:7, convenio:8,
+    administrador:9, estadoConvenio:10, fechaSuscripcion:11, fechaInicio:12,
+    plazo:13, financiamiento:14, valor:15, longitud:16, latitud:17,
+    transferenciaRecursos:18, tipologia:19, alerta:20, tipoAlerta:21,
+    proximasAcciones:22
   };
 
   let rawData = [];
@@ -313,6 +314,7 @@
     return rows.map(row => rowToObject(row, sheet)).filter(Boolean);
   }
   function cell(row, i){const c = (row.c || [])[i] || {}; return c.v ?? c.f ?? '';}
+  function hasCellValue(row, i){const c = (row.c || [])[i] || {}; return c.v !== null && c.v !== undefined && c.v !== '';}
   function cellDate(row, i){const c = (row.c || [])[i] || {}; return parseDate(c.v, c.f);}
 
   function rowToObject(row, sheet){
@@ -322,20 +324,13 @@
     if(!provincia || !canton) return null;
 
     let viviendas2d = 0, viviendas3d = 0, totalViviendas = 0, beneficiarios = 0;
-    if(sheet.component === '1B'){
-      viviendas2d = toNumber(cell(row,C.viviendas2d));
-      viviendas3d = toNumber(cell(row,C.viviendas3d));
-      totalViviendas = toNumber(cell(row,C.totalViviendas));
-      beneficiarios = toNumber(cell(row,C.beneficiarios));
-      if(!totalViviendas) totalViviendas = viviendas2d + viviendas3d || beneficiarios;
-    }else{
-      beneficiarios = toNumber(cell(row,C.beneficiarios));
-      totalViviendas = beneficiarios;
-      const tipo = normalizeText(cell(row,C.tipologia));
-      if(tipo.includes('2D')) viviendas2d = beneficiarios;
-      if(tipo.includes('3D')) viviendas3d = beneficiarios;
-    }
+    viviendas2d = toNumber(cell(row,C.viviendas2d));
+    viviendas3d = toNumber(cell(row,C.viviendas3d));
+    totalViviendas = toNumber(cell(row,C.totalViviendas));
+    beneficiarios = toNumber(cell(row,C.beneficiarios));
+    if(!totalViviendas) totalViviendas = viviendas2d + viviendas3d || beneficiarios;
 
+    const indirectos = hasCellValue(row,C.indirectos) ? toNumber(cell(row,C.indirectos)) : totalViviendas * 3;
     const lon = toNumber(cell(row,C.longitud));
     const lat = toNumber(cell(row,C.latitud));
     const fecha = cellDate(row,C.fechaSuscripcion);
@@ -349,7 +344,7 @@
       viviendas3d,
       totalViviendas,
       beneficiarios,
-      indirectos: totalViviendas * 3,
+      indirectos,
       estadoPlanMasa: sheet.component === '1B' ? String(cell(row,C.estadoPlanMasa) ?? '').trim() : '',
       estadoBanco: sheet.component === '1B' ? String(cell(row,C.estadoBanco) ?? '').trim() : '',
       convenioSuscrito: String(cell(row,C.convenioSuscrito) ?? '').trim(),
@@ -466,7 +461,7 @@
   function updateKPIs(){
     $('kpiProjects').textContent = numFmt.format(filteredData.length);
     $('kpiHomes').textContent = numFmt.format(sum(filteredData,'totalViviendas'));
-    $('kpiIndirect').textContent = numFmt.format(sum(filteredData,'totalViviendas') * 3);
+    $('kpiIndirect').textContent = numFmt.format(sum(filteredData,'indirectos'));
     $('kpiValue').textContent = moneyFmt.format(sum(filteredData,'valor'));
     $('kpiSigned').textContent = numFmt.format(countUniqueConvenios(filteredData));
     $('kpiSevere').textContent = numFmt.format(filteredData.filter(d=>normalizeText(d.tipoAlerta).includes('GRAVE')).length);
