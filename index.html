@@ -350,26 +350,81 @@
   function uniqueSorted(arr){return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));}
   function showError(msg){const box=$('errorBox'); if(!msg){box.style.display='none';box.textContent='';return;} box.textContent=msg; box.style.display='block';}
 
-  function gvizUrl(sheet){
-    const qualifiedRange = `'${sheet.name}'!${sheet.range}`;
-    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=1&range=${encodeURIComponent(qualifiedRange)}&cacheBust=${Date.now()}`;
+  function csvUrl(sheet){
+    // Se usa CSV por nombre de hoja para leer exactamente las columnas publicadas en Google Sheets.
+    // Esto evita que Google Visualization JSON omita o infiera mal columnas de texto largas, como ALERTA y PRÓXIMAS ACCIONES en 1A.
+    return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet.name)}&range=${encodeURIComponent(sheet.range)}&cacheBust=${Date.now()}`;
   }
+
+  function parseCSV(text){
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    const s = String(text ?? '').replace(/^\uFEFF/, '');
+    for(let i=0; i<s.length; i++){
+      const ch = s[i];
+      if(inQuotes){
+        if(ch === '"'){
+          if(s[i+1] === '"'){
+            field += '"';
+            i++;
+          }else{
+            inQuotes = false;
+          }
+        }else{
+          field += ch;
+        }
+      }else{
+        if(ch === '"'){
+          inQuotes = true;
+        }else if(ch === ','){
+          row.push(field);
+          field = '';
+        }else if(ch === '\n'){
+          row.push(field);
+          rows.push(row);
+          row = [];
+          field = '';
+        }else if(ch !== '\r'){
+          field += ch;
+        }
+      }
+    }
+    row.push(field);
+    if(row.length > 1 || String(row[0] ?? '').trim() !== '') rows.push(row);
+    return rows;
+  }
+
   async function fetchSheet(sheet){
-    const res = await fetch(gvizUrl(sheet));
+    const res = await fetch(csvUrl(sheet));
     if(!res.ok) throw new Error(`No se pudo leer la hoja ${sheet.name}. Verifica que el Google Sheets esté compartido públicamente.`);
     const txt = await res.text();
-    const match = txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
-    if(!match) throw new Error(`La hoja ${sheet.name} no devolvió datos válidos.`);
-    const json = JSON.parse(match[1]);
-    const rows = json.table?.rows || [];
+    if(/^\s*</.test(txt)) throw new Error(`La hoja ${sheet.name} no devolvió CSV válido.`);
+    const tableRows = parseCSV(txt).filter(r => r.some(c => String(c ?? '').trim() !== ''));
+    if(!tableRows.length) return [];
+    const headers = tableRows.shift();
     const fallback = sheet.component === '1B' ? COL_1B : COL_1A;
-    const colMap = buildColumnMap(json.table?.cols || [], fallback);
-    console.info(`Columnas detectadas ${sheet.name}:`, colMap);
-    return rows.map(row => rowToObject(row, sheet, colMap)).filter(Boolean);
+    const colMap = buildColumnMap(headers.map(h => ({label:h})), fallback);
+    console.info(`Columnas detectadas ${sheet.name}:`, colMap, headers);
+    return tableRows.map(row => rowToObject(row, sheet, colMap)).filter(Boolean);
   }
-  function cell(row, i){const c = (row.c || [])[i] || {}; return c.v ?? c.f ?? '';}
-  function hasCellValue(row, i){const c = (row.c || [])[i] || {}; return c.v !== null && c.v !== undefined && c.v !== '';}
-  function cellDate(row, i){const c = (row.c || [])[i] || {}; return parseDate(c.v, c.f);}
+
+  function cell(row, i){
+    if(i === undefined || i === null || i < 0) return '';
+    if(Array.isArray(row)) return row[i] ?? '';
+    const c = (row.c || [])[i] || {};
+    return c.v ?? c.f ?? '';
+  }
+  function hasCellValue(row, i){
+    if(i === undefined || i === null || i < 0) return false;
+    if(Array.isArray(row)) return row[i] !== null && row[i] !== undefined && String(row[i]).trim() !== '';
+    const c = (row.c || [])[i] || {};
+    return c.v !== null && c.v !== undefined && c.v !== '';
+  }
+  function cellDate(row, i){
+    if(Array.isArray(row)) return parseDate(row[i]);
+    const c = (row.c || [])[i] || {};
+    return parseDate(c.v, c.f);
+  }
 
   function makeColumnIndex(table, sheet){
     const fallback = sheet.component === '1B' ? COL_1B : COL_1A;
