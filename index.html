@@ -248,6 +248,54 @@
     proximasAcciones:22
   };
 
+
+  // Lectura robusta por encabezados: evita que 1A/1B fallen si se insertan, mueven o renombran columnas.
+  const HEADER_ALIASES = {
+    provincia:['PROVINCIA'],
+    canton:['CANTON','CANTÓN'],
+    viviendas2d:['VIVIENDAS 2D'],
+    viviendas3d:['VIVIENDAS 3D'],
+    totalViviendas:['TOTAL VIVIENDAS'],
+    beneficiarios:['BENEFICIARIOS','BENEFICIARIOS CALIFICADOS'],
+    indirectos:['BENEFICIARIOS INDIRECTOS'],
+    estadoPlanMasa:['ESTADO PLAN MASA'],
+    predioBanco:['PREDIO BANCO DE SUELO'],
+    estadoBanco:['ESTADO BANCO DE SUELOS'],
+    observacionBanco:['OBSERVACION BANCO DE SUELOS','OBSERVACIÓN BANCO DE SUELOS'],
+    convenioSuscrito:['CONVENIO SUSCRITO'],
+    convenio:['CONVENIO'],
+    administrador:['ADMINISTRADOR'],
+    estadoConvenio:['ESTADO CONVENIO'],
+    fechaSuscripcion:['FECHA SUSCRIPCION','FECHA SUSCRIPCIÓN'],
+    fechaInicio:['FECHA DE INICIO'],
+    plazo:['PLAZO (AÑOS)','PLAZO'],
+    financiamiento:['FINANCIAMIENTO'],
+    valor:['VALOR'],
+    terrenoIdentificado:['TERRENO IDENTIFICADO'],
+    longitud:['LONGITUD'],
+    latitud:['LATITUD'],
+    transferenciaRecursos:['TRANSFERENCIA DE RECURSOS'],
+    beneficiariosOk:['BENEFICIARIOS'],
+    planMasa:['PLAN MASA'],
+    tipologia:['TIPOLOGIA','TIPOLOGÍA'],
+    alerta:['ALERTA'],
+    tipoAlerta:['TIPO DE ALERTA','TIPO ALERTA'],
+    proximasAcciones:['PROXIMAS ACCIONES','PRÓXIMAS ACCIONES']
+  };
+
+  function normalizeHeader(v){return normalizeText(v).replace(/[^A-Z0-9]/g,'');}
+  function buildColumnMap(cols, fallback){
+    const labels = (cols || []).map(c => c.label || c.id || '');
+    const normalized = labels.map(normalizeHeader);
+    const map = {...fallback};
+    Object.entries(HEADER_ALIASES).forEach(([key, aliases])=>{
+      const wanted = aliases.map(normalizeHeader);
+      const idx = normalized.findIndex(label => wanted.includes(label));
+      if(idx >= 0) map[key] = idx;
+    });
+    return map;
+  }
+
   let rawData = [];
   let filteredData = [];
   let charts = {};
@@ -313,10 +361,11 @@
     const match = txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
     if(!match) throw new Error(`La hoja ${sheet.name} no devolvió datos válidos.`);
     const json = JSON.parse(match[1]);
-    const table = json.table || {};
-    const rows = table.rows || [];
-    const colIndex = makeColumnIndex(table, sheet);
-    return rows.map(row => rowToObject(row, sheet, colIndex)).filter(Boolean);
+    const rows = json.table?.rows || [];
+    const fallback = sheet.component === '1B' ? COL_1B : COL_1A;
+    const colMap = buildColumnMap(json.table?.cols || [], fallback);
+    console.info(`Columnas detectadas ${sheet.name}:`, colMap);
+    return rows.map(row => rowToObject(row, sheet, colMap)).filter(Boolean);
   }
   function cell(row, i){const c = (row.c || [])[i] || {}; return c.v ?? c.f ?? '';}
   function hasCellValue(row, i){const c = (row.c || [])[i] || {}; return c.v !== null && c.v !== undefined && c.v !== '';}
