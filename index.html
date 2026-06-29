@@ -226,7 +226,7 @@
     // Se usa rango calificado y entre comillas porque los nombres de hoja "1A" y "1B" empiezan con número;
     // si se consulta solo con sheet=1A/1B, Google puede devolver el gid activo o interpretar mal el nombre.
     {name:'1B', component:'1B', range:'A:AD'},
-    {name:'1A', component:'1A', range:'A:W'}
+    {name:'1A', component:'1A', range:'A:AD'}
   ];
 
   const COL_1B = {
@@ -313,15 +313,64 @@
     const match = txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
     if(!match) throw new Error(`La hoja ${sheet.name} no devolvió datos válidos.`);
     const json = JSON.parse(match[1]);
-    const rows = json.table?.rows || [];
-    return rows.map(row => rowToObject(row, sheet)).filter(Boolean);
+    const table = json.table || {};
+    const rows = table.rows || [];
+    const colIndex = makeColumnIndex(table, sheet);
+    return rows.map(row => rowToObject(row, sheet, colIndex)).filter(Boolean);
   }
   function cell(row, i){const c = (row.c || [])[i] || {}; return c.v ?? c.f ?? '';}
   function hasCellValue(row, i){const c = (row.c || [])[i] || {}; return c.v !== null && c.v !== undefined && c.v !== '';}
   function cellDate(row, i){const c = (row.c || [])[i] || {}; return parseDate(c.v, c.f);}
 
-  function rowToObject(row, sheet){
-    const C = sheet.component === '1B' ? COL_1B : COL_1A;
+  function makeColumnIndex(table, sheet){
+    const fallback = sheet.component === '1B' ? COL_1B : COL_1A;
+    const byHeader = new Map();
+    (table.cols || []).forEach((col, i) => {
+      const names = [col.label, col.id].map(v => normalizeText(v)).filter(Boolean);
+      names.forEach(name => { if(!byHeader.has(name)) byHeader.set(name, i); });
+    });
+    const pick = (key, names) => {
+      for(const name of names){
+        const n = normalizeText(name);
+        if(byHeader.has(n)) return byHeader.get(n);
+      }
+      return fallback[key];
+    };
+    return {
+      provincia: pick('provincia',['PROVINCIA']),
+      canton: pick('canton',['CANTON','CANTÓN']),
+      viviendas2d: pick('viviendas2d',['VIVIENDAS 2D']),
+      viviendas3d: pick('viviendas3d',['VIVIENDAS 3D']),
+      totalViviendas: pick('totalViviendas',['TOTAL VIVIENDAS','VIVIENDAS','TOTAL DE VIVIENDAS']),
+      beneficiarios: pick('beneficiarios',['BENEFICIARIOS','BENEFICIARIOS CALIFICADOS']),
+      indirectos: pick('indirectos',['BENEFICIARIOS INDIRECTOS']),
+      estadoPlanMasa: pick('estadoPlanMasa',['ESTADO PLAN MASA']),
+      predioBanco: pick('predioBanco',['PREDIO BANCO DE SUELO']),
+      estadoBanco: pick('estadoBanco',['ESTADO BANCO DE SUELOS']),
+      observacionBanco: pick('observacionBanco',['OBSERVACION BANCO DE SUELOS','OBSERVACIÓN BANCO DE SUELOS']),
+      convenioSuscrito: pick('convenioSuscrito',['CONVENIO SUSCRITO']),
+      convenio: pick('convenio',['CONVENIO']),
+      administrador: pick('administrador',['ADMINISTRADOR']),
+      estadoConvenio: pick('estadoConvenio',['ESTADO CONVENIO']),
+      fechaSuscripcion: pick('fechaSuscripcion',['FECHA SUSCRIPCION','FECHA SUSCRIPCIÓN']),
+      fechaInicio: pick('fechaInicio',['FECHA DE INICIO']),
+      plazo: pick('plazo',['PLAZO (AÑOS)','PLAZO']),
+      financiamiento: pick('financiamiento',['FINANCIAMIENTO']),
+      valor: pick('valor',['VALOR']),
+      terrenoIdentificado: pick('terrenoIdentificado',['TERRENO IDENTIFICADO']),
+      longitud: pick('longitud',['LONGITUD','X']),
+      latitud: pick('latitud',['LATITUD','Y']),
+      transferenciaRecursos: pick('transferenciaRecursos',['TRANSFERENCIA DE RECURSOS']),
+      beneficiariosOk: pick('beneficiariosOk',['BENEFICIARIOS']),
+      planMasa: pick('planMasa',['PLAN MASA']),
+      tipologia: pick('tipologia',['TIPOLOGIA','TIPOLOGÍA']),
+      alerta: pick('alerta',['ALERTA']),
+      tipoAlerta: pick('tipoAlerta',['TIPO DE ALERTA','TIPO ALERTA']),
+      proximasAcciones: pick('proximasAcciones',['PROXIMAS ACCIONES','PRÓXIMAS ACCIONES'])
+    };
+  }
+
+  function rowToObject(row, sheet, C){
     const provincia = String(cell(row,C.provincia) ?? '').trim();
     const canton = String(cell(row,C.canton) ?? '').trim();
     if(!provincia || !canton) return null;
