@@ -115,6 +115,182 @@
     .error{display:none;margin-top:14px;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;border-radius:14px;padding:12px;font-size:14px}
     .leaflet-control-attribution{font-size:10px}
 
+
+    /* Constructor interactivo de reporte */
+    .report-modal{
+      position:fixed;
+      inset:0;
+      display:none;
+      z-index:12000;
+      background:rgba(15,23,42,.58);
+      backdrop-filter:blur(6px);
+      padding:18px;
+    }
+    .report-modal.open{display:flex;align-items:center;justify-content:center}
+    .report-shell{
+      width:min(1180px,100%);
+      max-height:94vh;
+      overflow:hidden;
+      background:#f8fafc;
+      border-radius:24px;
+      box-shadow:0 26px 70px rgba(15,23,42,.28);
+      border:1px solid rgba(255,255,255,.55);
+      display:flex;
+      flex-direction:column;
+    }
+    .report-head{
+      padding:16px 18px;
+      background:linear-gradient(135deg,#14532d,#052e16);
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .report-head h2{margin:0;font-size:20px;letter-spacing:-.03em}
+    .report-head p{margin:4px 0 0;color:rgba(255,255,255,.78);font-size:13px}
+    .report-close{
+      border:1px solid rgba(255,255,255,.25);
+      background:rgba(255,255,255,.12);
+      color:white;
+      width:38px;
+      height:38px;
+      border-radius:999px;
+      cursor:pointer;
+      font-size:22px;
+      line-height:1;
+    }
+    .report-builder{
+      display:grid;
+      grid-template-columns:310px 1fr;
+      gap:14px;
+      padding:14px;
+      overflow:auto;
+    }
+    .report-panel,.report-preview-panel{
+      background:white;
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      padding:14px;
+      min-width:0;
+    }
+    .report-panel h3,.report-preview-panel h3{margin:0 0 10px;font-size:15px}
+    .report-hint{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.35}
+    .report-block-list{display:grid;gap:9px}
+    .report-block{
+      border:1px solid #dbe3ee;
+      background:#ffffff;
+      border-radius:14px;
+      padding:10px;
+      cursor:grab;
+      box-shadow:0 6px 14px rgba(15,23,42,.05);
+      user-select:none;
+    }
+    .report-block:active{cursor:grabbing}
+    .report-block strong{display:block;font-size:13px;color:#172033}
+    .report-block span{display:block;margin-top:3px;font-size:12px;color:var(--muted);line-height:1.25}
+    .report-workspace{
+      min-height:260px;
+      border:2px dashed #cbd5e1;
+      border-radius:18px;
+      background:#f8fafc;
+      padding:12px;
+      display:grid;
+      gap:9px;
+      align-content:start;
+    }
+    .report-workspace.drag-over{border-color:var(--primary);background:#ecfdf5}
+    .selected-block{
+      background:white;
+      border:1px solid #dbe3ee;
+      border-radius:14px;
+      padding:10px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      box-shadow:0 6px 14px rgba(15,23,42,.05);
+      cursor:grab;
+    }
+    .selected-block strong{font-size:13px}
+    .selected-block small{display:block;margin-top:3px;color:var(--muted);line-height:1.25}
+    .selected-actions{display:flex;gap:5px;flex-shrink:0}
+    .mini-btn{
+      border:1px solid var(--line);
+      background:#f8fafc;
+      color:#334155;
+      border-radius:9px;
+      height:28px;
+      min-width:28px;
+      padding:0 8px;
+      font-weight:850;
+      cursor:pointer;
+    }
+    .report-options{
+      margin-top:12px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+    .report-options .field{min-width:0}
+    .report-actions{
+      border-top:1px solid var(--line);
+      background:white;
+      padding:12px 14px;
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .report-primary,.report-secondary,.report-danger{
+      border:0;
+      border-radius:999px;
+      padding:10px 14px;
+      font-weight:850;
+      cursor:pointer;
+    }
+    .report-primary{background:var(--primary);color:white}
+    .report-secondary{background:#e2e8f0;color:#172033}
+    .report-danger{background:#fee2e2;color:#991b1b}
+
+    .report-preview .r-meta{font-size:10px;color:#475569;text-align:right;margin-bottom:8px}
+    .report-preview h1{text-align:center;color:#1f4e79;font-size:15px;margin:8px 0 18px;text-transform:uppercase}
+    .report-preview h2{color:#1f4e79;font-size:13px;margin:16px 0 8px}
+    .report-preview h3{font-size:11px;margin:8px 0 5px;color:#1f4e79}
+    .report-preview p{margin:6px 0;text-align:justify;font-size:11px;line-height:1.32}
+    .report-preview .r-table{width:100%;border-collapse:collapse;margin:6px 0 10px}
+    .report-preview .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:10px;position:static}
+    .report-preview .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:top;font-size:10px;white-space:normal}
+    .report-preview .num{text-align:center;white-space:nowrap}
+    .report-preview .r-total{background:#dbeafe;border:1px solid #bfdbfe;padding:7px;text-align:center;font-weight:bold}
+    .report-preview .r-chart img{width:100%;max-height:260px;object-fit:contain;border:1px solid #e5e7eb}
+
+    .report-preview{
+      background:white;
+      border:1px solid var(--line);
+      border-radius:14px;
+      height:520px;
+      overflow:auto;
+      padding:12px;
+    }
+    .report-empty{
+      min-height:180px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      text-align:center;
+      font-size:13px;
+      line-height:1.4;
+    }
+
+    @media(max-width:900px){
+      .report-builder{grid-template-columns:1fr}
+      .report-preview{height:420px}
+      .report-options{grid-template-columns:1fr}
+    }
+
     @media(max-width:1180px){
       .filters{grid-template-columns:repeat(4,1fr);position:static}
       .actions{grid-column:auto}
@@ -147,7 +323,7 @@
       </div>
       <div class="status">
         <span class="pill" id="lastUpdate">Sin actualizar</span>
-        <button class="download-btn" onclick="downloadFilteredCSV()">Descargar base filtrada</button>
+        <button class="download-btn" onclick="openReportBuilder()">Armar reporte</button>
         <button class="refresh-btn" onclick="loadData()">Actualizar</button>
       </div>
     </section>
@@ -219,6 +395,53 @@
       </div>
     </section>
   </main>
+
+    <div class="report-modal" id="reportModal" aria-hidden="true">
+      <div class="report-shell" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+        <div class="report-head">
+          <div>
+            <h2 id="reportModalTitle">Constructor de reporte</h2>
+            <p>Arma un reporte institucional con los datos actualmente filtrados en el dashboard.</p>
+          </div>
+          <button class="report-close" onclick="closeReportBuilder()" aria-label="Cerrar">×</button>
+        </div>
+
+        <div class="report-builder">
+          <aside class="report-panel">
+            <h3>Piezas disponibles</h3>
+            <p class="report-hint">Arrastra las secciones hacia el área de contenido o haz clic en “+”. El encabezado y pie institucional se incluyen automáticamente.</p>
+            <div class="report-block-list" id="reportBlockList"></div>
+          </aside>
+
+          <section class="report-preview-panel">
+            <h3>Contenido del reporte</h3>
+            <p class="report-hint">Puedes reordenar las secciones arrastrándolas, o usar las flechas. El reporte respeta los filtros activos del dashboard.</p>
+            <div class="report-workspace" id="reportWorkspace"></div>
+
+            <div class="report-options">
+              <div class="field">
+                <label for="reportTitleInput">Título del reporte</label>
+                <input id="reportTitleInput" value="ESTADO DE PROYECTOS DE VIVIENDA DE INTERÉS SOCIAL">
+              </div>
+              <div class="field">
+                <label for="reportDateInput">Fecha de corte</label>
+                <input id="reportDateInput" type="date">
+              </div>
+            </div>
+
+            <h3 style="margin-top:14px">Vista previa</h3>
+            <div class="report-preview" id="reportPreview"></div>
+          </section>
+        </div>
+
+        <div class="report-actions">
+          <button class="report-danger" onclick="clearReportSelection()">Limpiar reporte</button>
+          <button class="report-secondary" onclick="updateReportPreview()">Actualizar vista previa</button>
+          <button class="report-secondary" onclick="printCustomReport()">Descargar PDF</button>
+          <button class="report-primary" onclick="downloadCustomReportWord()">Descargar Word</button>
+        </div>
+      </div>
+    </div>
 
 <script>
   const SHEET_ID = '1wLZgLbHR6Lr-XCn-U9TAp9jgMTn240OSwmubatAKHQM';
@@ -875,6 +1098,446 @@
 
   ['componentFilter','provinciaFilter'].forEach(id=>$(id).addEventListener('change',()=>{updateCantonOptions();applyFilters();}));
   ['cantonFilter','estadoConvenioFilter','financiamientoFilter','tipoAlertaFilter','convenioFilter'].forEach(id=>$(id).addEventListener('change',applyFilters));
+
+
+  const REPORT_HEADER_IMAGE = 'Encabezado.jpeg';
+  const REPORT_FOOTER_IMAGE = 'Pie_pagina.jpeg';
+  const REPORT_BLOCKS = [
+    {id:'intro', title:'Texto introductorio', desc:'Breve contexto institucional del reporte.'},
+    {id:'summary', title:'Resumen general', desc:'Indicadores principales de los datos filtrados.'},
+    {id:'bySegment', title:'Resumen por segmento', desc:'Viviendas, proyectos y presupuesto 1A/1B.'},
+    {id:'withAgreement', title:'Proyectos con convenio', desc:'Tabla de proyectos que registran convenio.'},
+    {id:'withoutAgreement', title:'Proyectos sin convenio', desc:'Tabla de proyectos pendientes o sin convenio.'},
+    {id:'alerts', title:'Alertas y próximas acciones', desc:'Matriz de alertas, estado y acciones.'},
+    {id:'province', title:'Distribución por provincia', desc:'Totales agregados por provincia.'},
+    {id:'status', title:'Estado de convenio', desc:'Conteo de proyectos por estado.'},
+    {id:'finance', title:'Financiamiento', desc:'Valor estimado agrupado por financiamiento.'},
+    {id:'charts', title:'Gráficos del dashboard', desc:'Incluye las gráficas visibles como imágenes.'},
+    {id:'detail', title:'Matriz final filtrada', desc:'Detalle completo de registros filtrados.'}
+  ];
+  let reportSelectedBlocks = ['intro','summary','withAgreement','withoutAgreement','alerts'];
+
+  function todayISO(){
+    const d = new Date();
+    const z = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
+  }
+
+  function openReportBuilder(){
+    $('reportDateInput').value = $('reportDateInput').value || todayISO();
+    renderReportBuilder();
+    updateReportPreview();
+    $('reportModal').classList.add('open');
+    $('reportModal').setAttribute('aria-hidden','false');
+  }
+
+  function closeReportBuilder(){
+    $('reportModal').classList.remove('open');
+    $('reportModal').setAttribute('aria-hidden','true');
+  }
+
+  function renderReportBuilder(){
+    const selected = new Set(reportSelectedBlocks);
+    $('reportBlockList').innerHTML = REPORT_BLOCKS.map(b=>`
+      <div class="report-block" draggable="true" data-block-id="${b.id}" ondragstart="reportDragStart(event)" ondblclick="addReportBlock('${b.id}')">
+        <strong>${escapeHtml(b.title)} ${selected.has(b.id) ? '✓' : ''}</strong>
+        <span>${escapeHtml(b.desc)}</span>
+        <button class="mini-btn" type="button" style="margin-top:8px" onclick="addReportBlock('${b.id}')">+</button>
+      </div>
+    `).join('');
+
+    const workspace = $('reportWorkspace');
+    workspace.ondragover = reportDragOver;
+    workspace.ondragleave = reportDragLeave;
+    workspace.ondrop = reportDrop;
+
+    workspace.innerHTML = reportSelectedBlocks.length ? reportSelectedBlocks.map((id,idx)=>{
+      const b = REPORT_BLOCKS.find(x=>x.id===id);
+      if(!b) return '';
+      return `
+        <div class="selected-block" draggable="true" data-selected-index="${idx}" ondragstart="selectedReportDragStart(event)" ondragover="selectedReportDragOver(event)" ondrop="selectedReportDrop(event)">
+          <div>
+            <strong>${idx+1}. ${escapeHtml(b.title)}</strong>
+            <small>${escapeHtml(b.desc)}</small>
+          </div>
+          <div class="selected-actions">
+            <button class="mini-btn" type="button" onclick="moveReportBlock(${idx},-1)">↑</button>
+            <button class="mini-btn" type="button" onclick="moveReportBlock(${idx},1)">↓</button>
+            <button class="mini-btn" type="button" onclick="removeReportBlock(${idx})">×</button>
+          </div>
+        </div>
+      `;
+    }).join('') : `<div class="report-empty">Arrastra aquí las piezas que quieras incluir en el reporte.</div>`;
+  }
+
+  function addReportBlock(id){
+    if(!reportSelectedBlocks.includes(id)) reportSelectedBlocks.push(id);
+    renderReportBuilder();
+    updateReportPreview();
+  }
+
+  function removeReportBlock(idx){
+    reportSelectedBlocks.splice(idx,1);
+    renderReportBuilder();
+    updateReportPreview();
+  }
+
+  function moveReportBlock(idx,delta){
+    const next = idx + delta;
+    if(next < 0 || next >= reportSelectedBlocks.length) return;
+    [reportSelectedBlocks[idx], reportSelectedBlocks[next]] = [reportSelectedBlocks[next], reportSelectedBlocks[idx]];
+    renderReportBuilder();
+    updateReportPreview();
+  }
+
+  function clearReportSelection(){
+    reportSelectedBlocks = [];
+    renderReportBuilder();
+    updateReportPreview();
+  }
+
+  function reportDragStart(ev){
+    ev.dataTransfer.setData('text/report-block-id', ev.currentTarget.dataset.blockId);
+    ev.dataTransfer.effectAllowed = 'copy';
+  }
+
+  function reportDragOver(ev){
+    ev.preventDefault();
+    $('reportWorkspace').classList.add('drag-over');
+  }
+
+  function reportDragLeave(){
+    $('reportWorkspace').classList.remove('drag-over');
+  }
+
+  function reportDrop(ev){
+    ev.preventDefault();
+    $('reportWorkspace').classList.remove('drag-over');
+    const id = ev.dataTransfer.getData('text/report-block-id');
+    if(id) addReportBlock(id);
+  }
+
+  function selectedReportDragStart(ev){
+    ev.dataTransfer.setData('text/report-selected-index', ev.currentTarget.dataset.selectedIndex);
+    ev.dataTransfer.effectAllowed = 'move';
+  }
+
+  function selectedReportDragOver(ev){ ev.preventDefault(); }
+
+  function selectedReportDrop(ev){
+    ev.preventDefault();
+    const from = Number(ev.dataTransfer.getData('text/report-selected-index'));
+    const to = Number(ev.currentTarget.dataset.selectedIndex);
+    if(!Number.isFinite(from) || !Number.isFinite(to) || from === to) return;
+    const [item] = reportSelectedBlocks.splice(from,1);
+    reportSelectedBlocks.splice(to,0,item);
+    renderReportBuilder();
+    updateReportPreview();
+  }
+
+  function filteredContextText(){
+    const parts = [];
+    const labels = [
+      ['Segmento',$('componentFilter').value],
+      ['Provincia',$('provinciaFilter').value],
+      ['Cantón',$('cantonFilter').value],
+      ['Estado convenio',$('estadoConvenioFilter').value],
+      ['Financiamiento',$('financiamientoFilter').value],
+      ['Tipo de alerta',$('tipoAlertaFilter').value],
+      ['Convenio suscrito',$('convenioFilter').value]
+    ];
+    labels.forEach(([k,v])=>{ if(v) parts.push(`${k}: ${v}`); });
+    return parts.length ? parts.join(' | ') : 'Sin filtros aplicados';
+  }
+
+  function reportTable(headers, rows, widths=[]){
+    return `<table class="r-table">
+      <thead><tr>${headers.map((h,i)=>`<th${widths[i] ? ` style="width:${widths[i]}"` : ''}>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}">No hay datos para los filtros seleccionados.</td></tr>`}</tbody>
+    </table>`;
+  }
+
+  function validAgreement(d){
+    return validConvenioName(d.convenio) || normalizeText(d.convenioSuscrito) === 'SI';
+  }
+
+  function agreementDisplay(d){
+    return validConvenioName(d.convenio) || (normalizeText(d.convenioSuscrito) === 'SI' ? 'Convenio suscrito' : 'Sin convenio');
+  }
+
+  function rowProject(d, includeSegment=true){
+    return `<tr>
+      ${includeSegment ? `<td>${escapeHtml(d.componente)}</td>` : ''}
+      <td>${escapeHtml(d.provincia)}</td>
+      <td>${escapeHtml(d.canton)}</td>
+      <td>${escapeHtml(agreementDisplay(d))}</td>
+      <td class="num">${numFmt.format(d.totalViviendas)}</td>
+      <td class="num">${moneyFmt.format(d.valor || 0)}</td>
+      <td>${escapeHtml(d.estadoConvenio)}</td>
+      <td>${escapeHtml(d.alerta || 'Sin dato')}</td>
+    </tr>`;
+  }
+
+  function sectionIntro(){
+    const date = $('reportDateInput').value ? new Date($('reportDateInput').value + 'T00:00:00').toLocaleDateString('es-EC') : new Date().toLocaleDateString('es-EC');
+    return `<h2>1. Antecedente</h2>
+      <p>El presente reporte consolida el estado de los proyectos planificados de vivienda de interés social, considerando la información disponible en el dashboard institucional con corte al <b>${escapeHtml(date)}</b>.</p>
+      <p>La información presentada corresponde al universo de registros filtrados por el usuario al momento de generar el reporte. Filtros aplicados: <b>${escapeHtml(filteredContextText())}</b>.</p>`;
+  }
+
+  function sectionSummary(){
+    const severe = filteredData.filter(d=>normalizeText(d.tipoAlerta).includes('GRAVE') || normalizeText(d.tipoAlerta).includes('ALTO')).length;
+    const coords = filteredData.filter(d=>d.hasCoords).length;
+    const rows = [
+      ['Total proyectos', numFmt.format(filteredData.length)],
+      ['Total viviendas', numFmt.format(sum(filteredData,'totalViviendas'))],
+      ['Beneficiarios indirectos', numFmt.format(sum(filteredData,'indirectos'))],
+      ['Valor estimado', moneyFmt.format(sum(filteredData,'valor'))],
+      ['Convenios identificados', numFmt.format(countUniqueConvenios(filteredData))],
+      ['Alertas graves/altas', numFmt.format(severe)],
+      ['Proyectos georreferenciados', numFmt.format(coords)]
+    ].map(r=>`<tr><td>${escapeHtml(r[0])}</td><td class="num"><b>${escapeHtml(r[1])}</b></td></tr>`);
+    return `<h2>2. Resumen general</h2>${reportTable(['Indicador','Valor'], rows, ['65%','35%'])}`;
+  }
+
+  function sectionBySegment(){
+    const grouped = groupSum(filteredData,'componente','totalViviendas').map(g=>{
+      const rows = filteredData.filter(d=>d.componente === g.label);
+      return `<tr>
+        <td>${escapeHtml(g.label)}</td>
+        <td class="num">${numFmt.format(rows.length)}</td>
+        <td class="num">${numFmt.format(g.value)}</td>
+        <td class="num">${numFmt.format(rows.reduce((a,d)=>a+(Number(d.indirectos)||0),0))}</td>
+        <td class="num">${moneyFmt.format(rows.reduce((a,d)=>a+(Number(d.valor)||0),0))}</td>
+      </tr>`;
+    });
+    return `<h2>3. Resumen por segmento</h2>${reportTable(['Segmento','Proyectos','Viviendas','Beneficiarios indirectos','Valor estimado'], grouped)}`;
+  }
+
+  function sectionWithAgreement(){
+    const data = filteredData.filter(validAgreement).sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
+    const rows = data.map(d=>rowProject(d));
+    const total = data.reduce((a,d)=>a+(Number(d.totalViviendas)||0),0);
+    return `<h2>4. Proyectos con convenio</h2>
+      ${reportTable(['Segmento','Provincia','Cantón','Convenio','Viviendas','Valor','Estado','Alerta'], rows)}
+      <p class="r-total">TOTAL: ${numFmt.format(total)} viviendas.</p>`;
+  }
+
+  function sectionWithoutAgreement(){
+    const data = filteredData.filter(d=>!validAgreement(d)).sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
+    const rows = data.map(d=>rowProject(d));
+    const total = data.reduce((a,d)=>a+(Number(d.totalViviendas)||0),0);
+    return `<h2>5. Proyectos sin convenio</h2>
+      ${reportTable(['Segmento','Provincia','Cantón','Convenio','Viviendas','Valor','Estado','Alerta'], rows)}
+      <p class="r-total">TOTAL: ${numFmt.format(total)} viviendas.</p>`;
+  }
+
+  function sectionAlerts(){
+    const data = filteredData.filter(d=>d.alerta || d.proximasAcciones || normalizeText(d.tipoAlerta) !== 'SIN ALERTA')
+      .sort((a,b)=>String(a.tipoAlerta).localeCompare(String(b.tipoAlerta),'es') || b.totalViviendas-a.totalViviendas);
+    const rows = data.map(d=>`<tr>
+      <td>${escapeHtml(d.componente)}</td>
+      <td>${escapeHtml(d.provincia)}</td>
+      <td>${escapeHtml(d.canton)}</td>
+      <td>${escapeHtml(d.tipoAlerta || 'Sin alerta')}</td>
+      <td>${escapeHtml(d.alerta || 'Sin dato')}</td>
+      <td>${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
+    </tr>`);
+    return `<h2>6. Alertas y próximas acciones</h2>${reportTable(['Segmento','Provincia','Cantón','Tipo alerta','Alerta','Próximas acciones'], rows)}`;
+  }
+
+  function sectionProvince(){
+    const groups = groupSum(filteredData,'provincia','totalViviendas');
+    const rows = groups.map(g=>{
+      const data = filteredData.filter(d=>d.provincia === g.label);
+      return `<tr>
+        <td>${escapeHtml(g.label)}</td>
+        <td class="num">${numFmt.format(data.length)}</td>
+        <td class="num">${numFmt.format(g.value)}</td>
+        <td class="num">${moneyFmt.format(data.reduce((a,d)=>a+(Number(d.valor)||0),0))}</td>
+      </tr>`;
+    });
+    return `<h2>7. Distribución por provincia</h2>${reportTable(['Provincia','Proyectos','Viviendas','Valor estimado'], rows)}`;
+  }
+
+  function sectionStatus(){
+    const groups = groupCount(filteredData,'estadoConvenio');
+    const rows = groups.map(g=>`<tr><td>${escapeHtml(g.label)}</td><td class="num">${numFmt.format(g.value)}</td></tr>`);
+    return `<h2>8. Estado de convenio</h2>${reportTable(['Estado','Proyectos'], rows)}`;
+  }
+
+  function sectionFinance(){
+    const groups = groupSum(filteredData,'financiamiento','valor');
+    const rows = groups.map(g=>{
+      const data = filteredData.filter(d=>d.financiamiento === g.label);
+      return `<tr>
+        <td>${escapeHtml(g.label)}</td>
+        <td class="num">${numFmt.format(data.length)}</td>
+        <td class="num">${numFmt.format(data.reduce((a,d)=>a+(Number(d.totalViviendas)||0),0))}</td>
+        <td class="num">${moneyFmt.format(g.value)}</td>
+      </tr>`;
+    });
+    return `<h2>9. Financiamiento</h2>${reportTable(['Financiamiento','Proyectos','Viviendas','Valor estimado'], rows)}`;
+  }
+
+  function sectionCharts(){
+    const chartItems = [
+      ['Viviendas planificadas por provincia','provinceChart'],
+      ['Viviendas por segmento','componentChart'],
+      ['Estado de convenio por proyecto','statusChart'],
+      ['Tipo de alerta','alertChart'],
+      ['Financiamiento','financeChart'],
+      ['Tipología','typologyChart']
+    ];
+    const imgs = chartItems.map(([title,id])=>{
+      try{
+        const img = charts[id]?.toBase64Image ? charts[id].toBase64Image() : '';
+        return img ? `<div class="r-chart"><h3>${escapeHtml(title)}</h3><img src="${img}"></div>` : '';
+      }catch(e){ return ''; }
+    }).join('');
+    return `<h2>10. Gráficos del dashboard</h2>${imgs || '<p>No se pudieron capturar los gráficos para la vista previa.</p>'}`;
+  }
+
+  function sectionDetail(){
+    const data = filteredData.slice().sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
+    const rows = data.map(d=>`<tr>
+      <td>${escapeHtml(d.componente)}</td>
+      <td>${escapeHtml(d.provincia)}</td>
+      <td>${escapeHtml(d.canton)}</td>
+      <td class="num">${numFmt.format(d.totalViviendas)}</td>
+      <td>${escapeHtml(d.estadoConvenio)}</td>
+      <td>${escapeHtml(d.financiamiento)}</td>
+      <td class="num">${moneyFmt.format(d.valor || 0)}</td>
+      <td>${escapeHtml(d.tipoAlerta || 'Sin alerta')}</td>
+      <td>${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
+    </tr>`);
+    return `<h2>11. Matriz final filtrada</h2>${reportTable(['Segmento','Provincia','Cantón','Viviendas','Estado','Financiamiento','Valor','Tipo alerta','Próximas acciones'], rows)}`;
+  }
+
+  function buildReportSections(){
+    const mapSections = {
+      intro: sectionIntro,
+      summary: sectionSummary,
+      bySegment: sectionBySegment,
+      withAgreement: sectionWithAgreement,
+      withoutAgreement: sectionWithoutAgreement,
+      alerts: sectionAlerts,
+      province: sectionProvince,
+      status: sectionStatus,
+      finance: sectionFinance,
+      charts: sectionCharts,
+      detail: sectionDetail
+    };
+    return reportSelectedBlocks.map(id=>mapSections[id]?.()).filter(Boolean).join('');
+  }
+
+  async function imageToDataUri(src){
+    try{
+      const res = await fetch(src, {cache:'reload'});
+      if(!res.ok) return src;
+      const blob = await res.blob();
+      return await new Promise(resolve=>{
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => resolve(src);
+        reader.readAsDataURL(blob);
+      });
+    }catch(e){
+      return src;
+    }
+  }
+
+  async function buildReportHTML(embedImages=false){
+    const title = $('reportTitleInput').value || 'ESTADO DE PROYECTOS DE VIVIENDA DE INTERÉS SOCIAL';
+    const headerSrc = embedImages ? await imageToDataUri(REPORT_HEADER_IMAGE) : REPORT_HEADER_IMAGE;
+    const footerSrc = embedImages ? await imageToDataUri(REPORT_FOOTER_IMAGE) : REPORT_FOOTER_IMAGE;
+    const generated = new Date().toLocaleString('es-EC');
+    const sections = buildReportSections();
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(title)}</title>
+<style>
+  @page{size:A4;margin:18mm 14mm 20mm 14mm}
+  body{font-family:Arial, sans-serif;color:#111827;margin:0;background:white;font-size:11px;line-height:1.28}
+  .r-page{max-width:760px;margin:0 auto;background:white;padding:0 0 18px}
+  .r-header img{width:100%;max-height:96px;object-fit:contain;display:block;margin:0 auto 10px}
+  .r-footer img{width:100%;max-height:88px;object-fit:contain;display:block;margin:18px auto 0}
+  h1{text-align:center;color:#1f4e79;font-size:15px;margin:8px 0 18px;text-transform:uppercase}
+  h2{color:#1f4e79;font-size:13px;margin:16px 0 8px;page-break-after:avoid}
+  h3{font-size:11px;margin:8px 0 5px;color:#1f4e79}
+  p{margin:6px 0;text-align:justify}
+  .r-meta{font-size:10px;color:#475569;text-align:right;margin-bottom:8px}
+  .r-table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}
+  .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:10px}
+  .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:middle;font-size:10px}
+  .r-table tr{page-break-inside:avoid;page-break-after:auto}
+  .num{text-align:center;white-space:nowrap}
+  .r-total{background:#dbeafe;border:1px solid #bfdbfe;padding:7px;text-align:center;font-weight:bold}
+  .r-chart{page-break-inside:avoid;margin:8px 0 12px}
+  .r-chart img{width:100%;max-height:310px;object-fit:contain;border:1px solid #e5e7eb}
+  @media print{
+    body{font-size:10.5px}
+    .r-header{position:fixed;top:0;left:0;right:0}
+    .r-footer{position:fixed;bottom:0;left:0;right:0}
+    .r-page{padding-top:105px;padding-bottom:92px}
+  }
+</style>
+</head>
+<body>
+  <div class="r-header"><img src="${headerSrc}" onerror="this.style.display='none'"></div>
+  <div class="r-footer"><img src="${footerSrc}" onerror="this.style.display='none'"></div>
+  <main class="r-page">
+    <h1>${escapeHtml(title)}</h1>
+    <div class="r-meta">Generado: ${escapeHtml(generated)}<br>Fuente: Dashboard de Proyectos Planificados</div>
+    ${sections || '<p>No se seleccionaron secciones para el reporte.</p>'}
+  </main>
+</body>
+</html>`;
+  }
+
+  async function updateReportPreview(){
+    if(!$('reportPreview')) return;
+    $('reportPreview').innerHTML = '<div class="report-empty">Generando vista previa...</div>';
+    const html = await buildReportHTML(false);
+    const doc = $('reportPreview');
+    doc.innerHTML = html.match(/<main class="r-page">([\s\S]*?)<\/main>/)?.[1] || html;
+  }
+
+  async function downloadCustomReportWord(){
+    const html = await buildReportHTML(true);
+    const blob = new Blob(['\ufeff' + html], {type:'application/msword;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `reporte_proyectos_planificados_${stamp}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
+  async function printCustomReport(){
+    const html = await buildReportHTML(true);
+    const w = window.open('', '_blank');
+    if(!w){ alert('El navegador bloqueó la ventana emergente. Permite ventanas emergentes para descargar el PDF.'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setTimeout(()=>{ w.focus(); w.print(); }, 500);
+  }
+
+  document.addEventListener('keydown', ev=>{
+    if(ev.key === 'Escape' && $('reportModal')?.classList.contains('open')) closeReportBuilder();
+  });
+
+  ['reportTitleInput','reportDateInput'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('input', updateReportPreview);
+  });
+
 
   loadData();
 </script>
