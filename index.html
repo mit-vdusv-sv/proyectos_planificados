@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 
   <style>
     :root{
@@ -77,6 +78,17 @@
     select:focus,input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(20,83,45,.15)}
     .actions{display:flex;gap:8px;align-items:end}
     .clear-btn{width:100%;height:40px;border:1px solid var(--line);background:#f8fafc;border-radius:12px;font-weight:800;color:#334155;cursor:pointer}
+    .multi-select{position:relative}
+    .multi-trigger{width:100%;height:40px;border:1px solid var(--line);border-radius:12px;background:white;color:var(--text);font:inherit;text-align:left;padding:0 34px 0 10px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .multi-trigger:after{content:"";position:absolute;right:12px;top:17px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #64748b;pointer-events:none}
+    .multi-select.open .multi-trigger{border-color:var(--primary);box-shadow:0 0 0 3px rgba(20,83,45,.15)}
+    .multi-menu{display:none;position:absolute;top:44px;left:0;right:0;z-index:22000;background:white;border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 36px rgba(15,23,42,.18);padding:8px;max-height:280px;overflow:auto}
+    .multi-select.open .multi-menu{display:block}
+    .multi-tools{display:flex;gap:6px;margin-bottom:8px}
+    .multi-tools button{flex:1;height:30px;border:1px solid var(--line);border-radius:9px;background:#f8fafc;color:#334155;font-weight:800;font-size:11px;cursor:pointer}
+    .multi-option{display:flex;align-items:center;gap:8px;padding:6px;border-radius:9px;font-size:12px;cursor:pointer}
+    .multi-option:hover{background:#f8fafc}
+    .multi-option input{width:15px;height:15px;flex:0 0 auto}
 
     .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:16px}
     .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);min-width:0}
@@ -212,7 +224,10 @@
       gap:10px;
       box-shadow:0 6px 14px rgba(15,23,42,.05);
       cursor:grab;
+      touch-action:none;
     }
+    .selected-block.dragging{opacity:.45;border-color:var(--primary)}
+    .selected-block.drag-over{box-shadow:0 0 0 3px rgba(20,83,45,.16)}
     .selected-block strong{font-size:13px}
     .selected-block small{display:block;margin-top:3px;color:var(--muted);line-height:1.25}
     .selected-actions{display:flex;gap:5px;flex-shrink:0}
@@ -234,6 +249,22 @@
       gap:10px;
     }
     .report-options .field{min-width:0}
+    .report-compact-filters{
+      margin-bottom:12px;
+      padding:10px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#f8fafc;
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:8px;
+    }
+    .report-compact-filters .field label{font-size:11px;margin-bottom:4px}
+    .report-compact-filters select,.report-compact-filters input,.report-compact-filters .multi-trigger,.report-compact-filters .clear-btn{height:34px;border-radius:10px;font-size:12px}
+    .report-compact-filters .multi-menu{top:38px}
+    .intro-editor{grid-column:1/-1}
+    .intro-editor textarea{width:100%;min-height:112px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:10px;background:white;color:var(--text);font:inherit;font-size:13px;line-height:1.35;outline:none}
+    .intro-editor textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(20,83,45,.15)}
     .report-actions{
       border-top:1px solid var(--line);
       background:white;
@@ -255,6 +286,8 @@
     .report-danger{background:#fee2e2;color:#991b1b}
 
     .report-preview .r-meta{font-size:10px;color:#475569;text-align:right;margin-bottom:8px}
+    .report-preview .r-header img{width:100%;max-height:96px;object-fit:contain;display:block;margin:0 auto 10px}
+    .report-preview .r-footer img{width:100%;max-height:88px;object-fit:contain;display:block;margin:18px auto 0}
     .report-preview h1{text-align:center;color:#1f4e79;font-size:15px;margin:8px 0 18px;text-transform:uppercase}
     .report-preview h2{color:#1f4e79;font-size:13px;margin:16px 0 8px}
     .report-preview h3{font-size:11px;margin:8px 0 5px;color:#1f4e79}
@@ -262,6 +295,7 @@
     .report-preview .r-table{width:100%;border-collapse:collapse;margin:6px 0 10px}
     .report-preview .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:10px;position:static}
     .report-preview .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:top;font-size:10px;white-space:normal}
+    .report-preview .r-total-row td{background:#dbeafe;font-weight:bold}
     .report-preview .num{text-align:center;white-space:nowrap}
     .report-preview .r-total{background:#dbeafe;border:1px solid #bfdbfe;padding:7px;text-align:center;font-weight:bold}
     .report-preview .r-chart img{width:100%;max-height:260px;object-fit:contain;border:1px solid #e5e7eb}
@@ -289,6 +323,7 @@
       .report-builder{grid-template-columns:1fr}
       .report-preview{height:420px}
       .report-options{grid-template-columns:1fr}
+      .report-compact-filters{grid-template-columns:1fr 1fr}
     }
 
     @media(max-width:1180px){
@@ -303,6 +338,7 @@
       .status{justify-content:flex-start;width:100%}
       .refresh-btn,.download-btn{flex:1}
       .filters{grid-template-columns:1fr;padding:12px;gap:10px}
+      .report-compact-filters{grid-template-columns:1fr}
       .kpis{grid-template-columns:1fr;gap:10px}
       .card,.kpi{padding:13px;border-radius:16px}
       .chart-wrap,.chart-wrap.sm,#map{height:310px}
@@ -330,7 +366,13 @@
 
     <section class="filters">
       <div class="field"><label for="componentFilter">Segmento</label><select id="componentFilter"><option value="">Todos</option></select></div>
-      <div class="field"><label for="provinciaFilter">Provincia</label><select id="provinciaFilter"><option value="">Todas</option></select></div>
+      <div class="field">
+        <label>Provincia</label>
+        <div class="multi-select" id="provinciaFilterWrap">
+          <button class="multi-trigger" id="provinciaFilterTrigger" type="button" onclick="toggleProvinceMenu('provinciaFilter')">Todas</button>
+          <div class="multi-menu" id="provinciaFilterMenu"></div>
+        </div>
+      </div>
       <div class="field"><label for="cantonFilter">Cantón</label><select id="cantonFilter"><option value="">Todos</option></select></div>
       <div class="field"><label for="estadoConvenioFilter">Estado convenio</label><select id="estadoConvenioFilter"><option value="">Todos</option></select></div>
       <div class="field"><label for="financiamientoFilter">Financiamiento</label><select id="financiamientoFilter"><option value="">Todos</option></select></div>
@@ -416,6 +458,22 @@
           <section class="report-preview-panel">
             <h3>Contenido del reporte</h3>
             <p class="report-hint">Puedes reordenar las secciones arrastrándolas, o usar las flechas. El reporte respeta los filtros activos del dashboard.</p>
+            <div class="report-compact-filters">
+              <div class="field"><label for="reportComponentFilter">Segmento</label><select id="reportComponentFilter"><option value="">Todos</option></select></div>
+              <div class="field">
+                <label>Provincia</label>
+                <div class="multi-select" id="reportProvinciaFilterWrap">
+                  <button class="multi-trigger" id="reportProvinciaFilterTrigger" type="button" onclick="toggleProvinceMenu('reportProvinciaFilter')">Todas</button>
+                  <div class="multi-menu" id="reportProvinciaFilterMenu"></div>
+                </div>
+              </div>
+              <div class="field"><label for="reportCantonFilter">Cantón</label><select id="reportCantonFilter"><option value="">Todos</option></select></div>
+              <div class="field"><label for="reportEstadoConvenioFilter">Estado convenio</label><select id="reportEstadoConvenioFilter"><option value="">Todos</option></select></div>
+              <div class="field"><label for="reportFinanciamientoFilter">Financiamiento</label><select id="reportFinanciamientoFilter"><option value="">Todos</option></select></div>
+              <div class="field"><label for="reportTipoAlertaFilter">Tipo de alerta</label><select id="reportTipoAlertaFilter"><option value="">Todas</option></select></div>
+              <div class="field"><label for="reportConvenioFilter">Convenio suscrito</label><select id="reportConvenioFilter"><option value="">Todos</option></select></div>
+              <div class="actions"><button class="clear-btn" onclick="resetFilters()">Limpiar filtros</button></div>
+            </div>
             <div class="report-workspace" id="reportWorkspace"></div>
 
             <div class="report-options">
@@ -426,6 +484,10 @@
               <div class="field">
                 <label for="reportDateInput">Fecha de corte</label>
                 <input id="reportDateInput" type="date">
+              </div>
+              <div class="field intro-editor" id="reportIntroEditor" style="display:none">
+                <label for="reportIntroInput">Texto introductorio</label>
+                <textarea id="reportIntroInput"></textarea>
               </div>
             </div>
 
@@ -523,6 +585,7 @@
   let filteredData = [];
   let charts = {};
   let map, markersLayer;
+  let selectedProvinces = [];
 
   const $ = id => document.getElementById(id);
   const numFmt = new Intl.NumberFormat('es-EC');
@@ -777,34 +840,108 @@
     select.innerHTML = `<option value="">${allLabel}</option>` + values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
     if(values.includes(current)) select.value = current;
   }
+  function selectedProvinceSet(){
+    return new Set(selectedProvinces.filter(Boolean));
+  }
+  function provinceSummary(){
+    if(!selectedProvinces.length) return 'Todas';
+    if(selectedProvinces.length <= 2) return selectedProvinces.join(', ');
+    return `${selectedProvinces.length} provincias seleccionadas`;
+  }
+  function renderProvinceMenus(){
+    const values = uniqueSorted(rawData.map(d=>d.provincia));
+    const selected = selectedProvinceSet();
+    const html = `
+      <div class="multi-tools">
+        <button type="button" onclick="setProvinceSelection([])">Seleccionar todas</button>
+        <button type="button" onclick="setProvinceSelection([])">Limpiar selección</button>
+      </div>
+      ${values.map(v=>`<label class="multi-option"><input type="checkbox" value="${escapeHtml(v)}" ${selected.has(v) ? 'checked' : ''} onchange="toggleProvinceValue(this.value,this.checked)"> <span>${escapeHtml(v)}</span></label>`).join('')}`;
+    ['provinciaFilter','reportProvinciaFilter'].forEach(prefix=>{
+      const menu = $(`${prefix}Menu`);
+      const trigger = $(`${prefix}Trigger`);
+      if(menu) menu.innerHTML = html;
+      if(trigger) trigger.textContent = provinceSummary();
+    });
+  }
+  function toggleProvinceMenu(prefix){
+    const wrap = $(`${prefix}Wrap`);
+    if(!wrap) return;
+    document.querySelectorAll('.multi-select.open').forEach(el=>{ if(el !== wrap) el.classList.remove('open'); });
+    wrap.classList.toggle('open');
+  }
+  function setProvinceSelection(values){
+    selectedProvinces = uniqueSorted(values || []);
+    renderProvinceMenus();
+    updateCantonOptions();
+    syncReportFilterControls();
+    applyFilters();
+  }
+  function toggleProvinceValue(value, checked){
+    const set = selectedProvinceSet();
+    if(checked) set.add(value);
+    else set.delete(value);
+    setProvinceSelection([...set]);
+  }
   function populateFilters(){
     setOptions($('componentFilter'), uniqueSorted(rawData.map(d=>d.componente)), 'Todos');
-    setOptions($('provinciaFilter'), uniqueSorted(rawData.map(d=>d.provincia)), 'Todas');
     setOptions($('estadoConvenioFilter'), uniqueSorted(rawData.map(d=>d.estadoConvenio)), 'Todos');
     setOptions($('financiamientoFilter'), uniqueSorted(rawData.map(d=>d.financiamiento)), 'Todos');
     setOptions($('tipoAlertaFilter'), uniqueSorted(rawData.map(d=>d.tipoAlerta)), 'Todas');
     setOptions($('convenioFilter'), uniqueSorted(rawData.map(d=>d.convenioSuscrito)), 'Todos');
+    populateReportFilterOptions();
+    renderProvinceMenus();
     updateCantonOptions();
   }
+  function populateReportFilterOptions(){
+    const pairs = [
+      ['reportComponentFilter','componentFilter','Todos'],
+      ['reportEstadoConvenioFilter','estadoConvenioFilter','Todos'],
+      ['reportFinanciamientoFilter','financiamientoFilter','Todos'],
+      ['reportTipoAlertaFilter','tipoAlertaFilter','Todas'],
+      ['reportConvenioFilter','convenioFilter','Todos']
+    ];
+    pairs.forEach(([reportId, mainId, label])=>{
+      if($(reportId) && $(mainId)) setOptions($(reportId), Array.from($(mainId).options).slice(1).map(o=>o.value), label);
+    });
+  }
+  function syncReportFilterControls(){
+    const pairs = [
+      ['reportComponentFilter','componentFilter'],
+      ['reportEstadoConvenioFilter','estadoConvenioFilter'],
+      ['reportFinanciamientoFilter','financiamientoFilter'],
+      ['reportTipoAlertaFilter','tipoAlertaFilter'],
+      ['reportConvenioFilter','convenioFilter']
+    ];
+    pairs.forEach(([reportId, mainId])=>{ if($(reportId) && $(mainId)) $(reportId).value = $(mainId).value; });
+    if($('reportCantonFilter') && $('cantonFilter')) $('reportCantonFilter').value = $('cantonFilter').value;
+    renderProvinceMenus();
+  }
   function updateCantonOptions(){
-    const p = $('provinciaFilter').value;
+    const provinces = selectedProvinceSet();
     const comp = $('componentFilter').value;
     let base = rawData;
     if(comp) base = base.filter(d=>d.componente===comp);
-    if(p) base = base.filter(d=>d.provincia===p);
+    if(provinces.size) base = base.filter(d=>provinces.has(d.provincia));
     setOptions($('cantonFilter'), uniqueSorted(base.map(d=>d.canton)), 'Todos');
+    if($('reportCantonFilter')) setOptions($('reportCantonFilter'), uniqueSorted(base.map(d=>d.canton)), 'Todos');
+    syncReportFilterControls();
   }
   function applyFilters(){
-    const comp=$('componentFilter').value, p=$('provinciaFilter').value, c=$('cantonFilter').value;
+    const comp=$('componentFilter').value, provinces=selectedProvinceSet(), c=$('cantonFilter').value;
     const e=$('estadoConvenioFilter').value, f=$('financiamientoFilter').value, a=$('tipoAlertaFilter').value, conv=$('convenioFilter').value;
-    filteredData = rawData.filter(d=>(!comp||d.componente===comp)&&(!p||d.provincia===p)&&(!c||d.canton===c)&&(!e||d.estadoConvenio===e)&&(!f||d.financiamiento===f)&&(!a||d.tipoAlerta===a)&&(!conv||d.convenioSuscrito===conv));
+    filteredData = rawData.filter(d=>(!comp||d.componente===comp)&&(!provinces.size||provinces.has(d.provincia))&&(!c||d.canton===c)&&(!e||d.estadoConvenio===e)&&(!f||d.financiamiento===f)&&(!a||d.tipoAlerta===a)&&(!conv||d.convenioSuscrito===conv));
     updateKPIs();
     updateCharts();
     updateMap();
     updateTable();
+    syncReportFilterControls();
+    if($('reportModal')?.classList.contains('open')) updateReportPreview();
   }
   function resetFilters(){
-    ['componentFilter','provinciaFilter','cantonFilter','estadoConvenioFilter','financiamientoFilter','tipoAlertaFilter','convenioFilter'].forEach(id=>$(id).value='');
+    ['componentFilter','cantonFilter','estadoConvenioFilter','financiamientoFilter','tipoAlertaFilter','convenioFilter'].forEach(id=>$(id).value='');
+    selectedProvinces = [];
+    renderProvinceMenus();
     updateCantonOptions();
     applyFilters();
   }
@@ -824,7 +961,7 @@
     const raw = String(value ?? '').trim();
     const n = normalizeText(raw);
     if(!raw) return '';
-    if(['NO','SI','SIN DATO','N/A','NA','-','PENDIENTE'].includes(n)) return '';
+    if(['NO','SI','SIN DATO','S/D','SD','N/A','NA','-','PENDIENTE','NO APLICA','SIN CONVENIO','NO SUSCRITO','SIN SUSCRIBIR','EN PROCESO'].includes(n)) return '';
     return raw;
   }
 
@@ -1096,16 +1233,26 @@
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
 
-  ['componentFilter','provinciaFilter'].forEach(id=>$(id).addEventListener('change',()=>{updateCantonOptions();applyFilters();}));
+  ['componentFilter'].forEach(id=>$(id).addEventListener('change',()=>{updateCantonOptions();applyFilters();}));
   ['cantonFilter','estadoConvenioFilter','financiamientoFilter','tipoAlertaFilter','convenioFilter'].forEach(id=>$(id).addEventListener('change',applyFilters));
+  document.addEventListener('click', ev=>{
+    if(!ev.target.closest('.multi-select')) document.querySelectorAll('.multi-select.open').forEach(el=>el.classList.remove('open'));
+  });
 
 
-  const REPORT_HEADER_IMAGE = 'Encabezado.jpeg';
-  const REPORT_FOOTER_IMAGE = 'Pie_pagina.jpeg';
+  const REPORT_HEADER_IMAGE = './Encabezado.jpg';
+  const REPORT_FOOTER_IMAGE = './Pie_pagina.jpg';
+  const REPORT_SOURCE = 'Subsecretaría de Vivienda';
+  const REPORT_INTRO_BASE = `El presente reporte consolida el estado de los proyectos planificados de vivienda de interés social, considerando la información institucional disponible con corte al [fecha de corte].
+
+La información presentada corresponde al universo de registros filtrados por el usuario al momento de generar el reporte.`;
   const REPORT_BLOCKS = [
     {id:'intro', title:'Texto introductorio', desc:'Breve contexto institucional del reporte.'},
     {id:'summary', title:'Resumen general', desc:'Indicadores principales de los datos filtrados.'},
     {id:'bySegment', title:'Resumen por segmento', desc:'Viviendas, proyectos y presupuesto 1A/1B.'},
+    {id:'typologyHomes', title:'Viviendas por tipología', desc:'Viviendas 2D y 3D por provincia y segmento.'},
+    {id:'massPlanWithAgreement', title:'Planes masa con convenio', desc:'Solo proyectos 1B con plan masa y convenio válido.'},
+    {id:'massPlanWithoutAgreement', title:'Planes masa sin convenio', desc:'Solo proyectos 1B con plan masa pendientes de convenio.'},
     {id:'withAgreement', title:'Proyectos con convenio', desc:'Tabla de proyectos que registran convenio.'},
     {id:'withoutAgreement', title:'Proyectos sin convenio', desc:'Tabla de proyectos pendientes o sin convenio.'},
     {id:'alerts', title:'Alertas y próximas acciones', desc:'Matriz de alertas, estado y acciones.'},
@@ -1116,6 +1263,7 @@
     {id:'detail', title:'Matriz final filtrada', desc:'Detalle completo de registros filtrados.'}
   ];
   let reportSelectedBlocks = ['intro','summary','withAgreement','withoutAgreement','alerts'];
+  let touchDragIndex = null;
 
   function todayISO(){
     const d = new Date();
@@ -1125,6 +1273,10 @@
 
   function openReportBuilder(){
     $('reportDateInput').value = $('reportDateInput').value || todayISO();
+    if(!$('reportIntroInput').value.trim()) $('reportIntroInput').value = REPORT_INTRO_BASE;
+    populateReportFilterOptions();
+    updateCantonOptions();
+    syncReportFilterControls();
     renderReportBuilder();
     updateReportPreview();
     $('reportModal').classList.add('open');
@@ -1155,7 +1307,7 @@
       const b = REPORT_BLOCKS.find(x=>x.id===id);
       if(!b) return '';
       return `
-        <div class="selected-block" draggable="true" data-selected-index="${idx}" ondragstart="selectedReportDragStart(event)" ondragover="selectedReportDragOver(event)" ondrop="selectedReportDrop(event)">
+        <div class="selected-block" draggable="true" data-selected-index="${idx}" ondragstart="selectedReportDragStart(event)" ondragend="selectedReportDragEnd(event)" ondragover="selectedReportDragOver(event)" ondragleave="selectedReportDragLeave(event)" ondrop="selectedReportDrop(event)" ontouchstart="selectedReportTouchStart(event)" ontouchmove="selectedReportTouchMove(event)" ontouchend="selectedReportTouchEnd(event)">
           <div>
             <strong>${idx+1}. ${escapeHtml(b.title)}</strong>
             <small>${escapeHtml(b.desc)}</small>
@@ -1168,6 +1320,7 @@
         </div>
       `;
     }).join('') : `<div class="report-empty">Arrastra aquí las piezas que quieras incluir en el reporte.</div>`;
+    if($('reportIntroEditor')) $('reportIntroEditor').style.display = reportSelectedBlocks.includes('intro') ? '' : 'none';
   }
 
   function addReportBlock(id){
@@ -1220,9 +1373,22 @@
   function selectedReportDragStart(ev){
     ev.dataTransfer.setData('text/report-selected-index', ev.currentTarget.dataset.selectedIndex);
     ev.dataTransfer.effectAllowed = 'move';
+    ev.currentTarget.classList.add('dragging');
   }
 
-  function selectedReportDragOver(ev){ ev.preventDefault(); }
+  function selectedReportDragEnd(ev){
+    ev.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.selected-block.drag-over').forEach(el=>el.classList.remove('drag-over'));
+  }
+
+  function selectedReportDragOver(ev){
+    ev.preventDefault();
+    ev.currentTarget.classList.add('drag-over');
+  }
+
+  function selectedReportDragLeave(ev){
+    ev.currentTarget.classList.remove('drag-over');
+  }
 
   function selectedReportDrop(ev){
     ev.preventDefault();
@@ -1235,11 +1401,38 @@
     updateReportPreview();
   }
 
+  function selectedReportTouchStart(ev){
+    touchDragIndex = Number(ev.currentTarget.dataset.selectedIndex);
+    ev.currentTarget.classList.add('dragging');
+  }
+
+  function selectedReportTouchMove(ev){
+    if(touchDragIndex === null) return;
+    const touch = ev.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.selected-block');
+    document.querySelectorAll('.selected-block.drag-over').forEach(node=>node.classList.remove('drag-over'));
+    if(el) el.classList.add('drag-over');
+    ev.preventDefault();
+  }
+
+  function selectedReportTouchEnd(ev){
+    const target = document.querySelector('.selected-block.drag-over');
+    const to = target ? Number(target.dataset.selectedIndex) : touchDragIndex;
+    document.querySelectorAll('.selected-block.dragging,.selected-block.drag-over').forEach(el=>el.classList.remove('dragging','drag-over'));
+    if(touchDragIndex !== null && Number.isFinite(to) && touchDragIndex !== to){
+      const [item] = reportSelectedBlocks.splice(touchDragIndex,1);
+      reportSelectedBlocks.splice(to,0,item);
+      renderReportBuilder();
+      updateReportPreview();
+    }
+    touchDragIndex = null;
+  }
+
   function filteredContextText(){
     const parts = [];
     const labels = [
       ['Segmento',$('componentFilter').value],
-      ['Provincia',$('provinciaFilter').value],
+      ['Provincia', selectedProvinces.length ? selectedProvinces.join(', ') : ''],
       ['Cantón',$('cantonFilter').value],
       ['Estado convenio',$('estadoConvenioFilter').value],
       ['Financiamiento',$('financiamientoFilter').value],
@@ -1261,6 +1454,15 @@
     return validConvenioName(d.convenio) || normalizeText(d.convenioSuscrito) === 'SI';
   }
 
+  function validPlanMasa(d){
+    const n = normalizeText(d.planMasa);
+    return d.componente === '1B' && ['SI','SÍ','S','YES','TRUE','X'].includes(n);
+  }
+
+  function massPlanStatus(d){
+    return [d.estadoConvenio, d.alerta, d.proximasAcciones].filter(v=>String(v || '').trim()).join(' | ') || 'Sin dato';
+  }
+
   function agreementDisplay(d){
     return validConvenioName(d.convenio) || (normalizeText(d.convenioSuscrito) === 'SI' ? 'Convenio suscrito' : 'Sin convenio');
   }
@@ -1280,9 +1482,9 @@
 
   function sectionIntro(){
     const date = $('reportDateInput').value ? new Date($('reportDateInput').value + 'T00:00:00').toLocaleDateString('es-EC') : new Date().toLocaleDateString('es-EC');
-    return `<h2>1. Antecedente</h2>
-      <p>El presente reporte consolida el estado de los proyectos planificados de vivienda de interés social, considerando la información disponible en el dashboard institucional con corte al <b>${escapeHtml(date)}</b>.</p>
-      <p>La información presentada corresponde al universo de registros filtrados por el usuario al momento de generar el reporte. Filtros aplicados: <b>${escapeHtml(filteredContextText())}</b>.</p>`;
+    const text = ($('reportIntroInput')?.value || REPORT_INTRO_BASE).replace('[fecha de corte]', date);
+    const paragraphs = text.split(/\n{2,}/).map(p=>p.trim()).filter(Boolean).map(p=>`<p>${escapeHtml(p).replace(/\n/g,'<br>')}</p>`).join('');
+    return `${paragraphs}<p><b>Filtros aplicados:</b> ${escapeHtml(filteredContextText())}</p>`;
   }
 
   function sectionSummary(){
@@ -1297,7 +1499,7 @@
       ['Alertas graves/altas', numFmt.format(severe)],
       ['Proyectos georreferenciados', numFmt.format(coords)]
     ].map(r=>`<tr><td>${escapeHtml(r[0])}</td><td class="num"><b>${escapeHtml(r[1])}</b></td></tr>`);
-    return `<h2>2. Resumen general</h2>${reportTable(['Indicador','Valor'], rows, ['65%','35%'])}`;
+    return `${reportTable(['Indicador','Valor'], rows, ['65%','35%'])}`;
   }
 
   function sectionBySegment(){
@@ -1311,15 +1513,63 @@
         <td class="num">${moneyFmt.format(rows.reduce((a,d)=>a+(Number(d.valor)||0),0))}</td>
       </tr>`;
     });
-    return `<h2>3. Resumen por segmento</h2>${reportTable(['Segmento','Proyectos','Viviendas','Beneficiarios indirectos','Valor estimado'], grouped)}`;
+    return `${reportTable(['Segmento','Proyectos','Viviendas','Beneficiarios indirectos','Valor estimado'], grouped)}`;
+  }
+
+  function sectionTypologyHomes(){
+    const groups = new Map();
+    filteredData.forEach(d=>{
+      const key = `${d.provincia}||${d.componente}`;
+      if(!groups.has(key)) groups.set(key,{provincia:d.provincia, componente:d.componente, viviendas2d:0, viviendas3d:0, total:0});
+      const g = groups.get(key);
+      g.viviendas2d += Number(d.viviendas2d) || 0;
+      g.viviendas3d += Number(d.viviendas3d) || 0;
+      g.total += Number(d.totalViviendas) || 0;
+    });
+    const data = [...groups.values()].sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.componente.localeCompare(b.componente,'es'));
+    const rows = data.map(g=>`<tr>
+      <td>${escapeHtml(g.provincia)}</td>
+      <td>${escapeHtml(g.componente)}</td>
+      <td class="num">${numFmt.format(g.viviendas2d)}</td>
+      <td class="num">${numFmt.format(g.viviendas3d)}</td>
+      <td class="num">${numFmt.format(g.total)}</td>
+    </tr>`);
+    rows.push(`<tr class="r-total-row"><td colspan="2"><b>TOTAL</b></td><td class="num"><b>${numFmt.format(sum(filteredData,'viviendas2d'))}</b></td><td class="num"><b>${numFmt.format(sum(filteredData,'viviendas3d'))}</b></td><td class="num"><b>${numFmt.format(sum(filteredData,'totalViviendas'))}</b></td></tr>`);
+    return reportTable(['Provincia','Segmento','Viviendas 2D','Viviendas 3D','Total viviendas'], rows);
+  }
+
+  function sectionMassPlanWithAgreement(){
+    const data = filteredData.filter(d=>validPlanMasa(d) && validAgreement(d)).sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
+    const rows = data.map(d=>`<tr>
+      <td>${escapeHtml(agreementDisplay(d))}</td>
+      <td>${escapeHtml(`${d.provincia} - ${d.canton}`)}</td>
+      <td class="num">${moneyFmt.format(d.valor || 0)}</td>
+      <td class="num">${numFmt.format(d.viviendas2d || 0)}</td>
+      <td class="num">${numFmt.format(d.viviendas3d || 0)}</td>
+      <td class="num">${numFmt.format(d.totalViviendas || 0)}</td>
+      <td>${escapeHtml(massPlanStatus(d))}</td>
+    </tr>`);
+    rows.push(`<tr class="r-total-row"><td colspan="3"><b>TOTAL</b></td><td class="num"><b>${numFmt.format(sum(data,'viviendas2d'))}</b></td><td class="num"><b>${numFmt.format(sum(data,'viviendas3d'))}</b></td><td class="num"><b>${numFmt.format(sum(data,'totalViviendas'))}</b></td><td></td></tr>`);
+    return reportTable(['Convenio Nro.','Lugar','Presupuesto','Viviendas 2D','Viviendas 3D','Total viviendas','Estado'], rows);
+  }
+
+  function sectionMassPlanWithoutAgreement(){
+    const data = filteredData.filter(d=>validPlanMasa(d) && !validAgreement(d)).sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
+    const rows = data.map(d=>`<tr>
+      <td>${escapeHtml(`${d.provincia} - ${d.canton}`)}</td>
+      <td class="num">${moneyFmt.format(d.valor || 0)}</td>
+      <td class="num">${numFmt.format(d.totalViviendas || 0)}</td>
+      <td>${escapeHtml(massPlanStatus(d))}</td>
+    </tr>`);
+    rows.push(`<tr class="r-total-row"><td colspan="2"><b>TOTAL</b></td><td class="num"><b>${numFmt.format(sum(data,'totalViviendas'))}</b></td><td></td></tr>`);
+    return reportTable(['Lugar del plan masa proyectado','Presupuesto estimado','Viviendas aproximadas','Estado'], rows);
   }
 
   function sectionWithAgreement(){
     const data = filteredData.filter(validAgreement).sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
     const rows = data.map(d=>rowProject(d));
     const total = data.reduce((a,d)=>a+(Number(d.totalViviendas)||0),0);
-    return `<h2>4. Proyectos con convenio</h2>
-      ${reportTable(['Segmento','Provincia','Cantón','Convenio','Viviendas','Valor','Estado','Alerta'], rows)}
+    return `${reportTable(['Segmento','Provincia','Cantón','Convenio','Viviendas','Valor','Estado','Alerta'], rows)}
       <p class="r-total">TOTAL: ${numFmt.format(total)} viviendas.</p>`;
   }
 
@@ -1327,8 +1577,7 @@
     const data = filteredData.filter(d=>!validAgreement(d)).sort((a,b)=>a.provincia.localeCompare(b.provincia,'es') || a.canton.localeCompare(b.canton,'es'));
     const rows = data.map(d=>rowProject(d));
     const total = data.reduce((a,d)=>a+(Number(d.totalViviendas)||0),0);
-    return `<h2>5. Proyectos sin convenio</h2>
-      ${reportTable(['Segmento','Provincia','Cantón','Convenio','Viviendas','Valor','Estado','Alerta'], rows)}
+    return `${reportTable(['Segmento','Provincia','Cantón','Convenio','Viviendas','Valor','Estado','Alerta'], rows)}
       <p class="r-total">TOTAL: ${numFmt.format(total)} viviendas.</p>`;
   }
 
@@ -1343,7 +1592,7 @@
       <td>${escapeHtml(d.alerta || 'Sin dato')}</td>
       <td>${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
     </tr>`);
-    return `<h2>6. Alertas y próximas acciones</h2>${reportTable(['Segmento','Provincia','Cantón','Tipo alerta','Alerta','Próximas acciones'], rows)}`;
+    return `${reportTable(['Segmento','Provincia','Cantón','Tipo alerta','Alerta','Próximas acciones'], rows)}`;
   }
 
   function sectionProvince(){
@@ -1357,13 +1606,13 @@
         <td class="num">${moneyFmt.format(data.reduce((a,d)=>a+(Number(d.valor)||0),0))}</td>
       </tr>`;
     });
-    return `<h2>7. Distribución por provincia</h2>${reportTable(['Provincia','Proyectos','Viviendas','Valor estimado'], rows)}`;
+    return `${reportTable(['Provincia','Proyectos','Viviendas','Valor estimado'], rows)}`;
   }
 
   function sectionStatus(){
     const groups = groupCount(filteredData,'estadoConvenio');
     const rows = groups.map(g=>`<tr><td>${escapeHtml(g.label)}</td><td class="num">${numFmt.format(g.value)}</td></tr>`);
-    return `<h2>8. Estado de convenio</h2>${reportTable(['Estado','Proyectos'], rows)}`;
+    return `${reportTable(['Estado','Proyectos'], rows)}`;
   }
 
   function sectionFinance(){
@@ -1377,7 +1626,7 @@
         <td class="num">${moneyFmt.format(g.value)}</td>
       </tr>`;
     });
-    return `<h2>9. Financiamiento</h2>${reportTable(['Financiamiento','Proyectos','Viviendas','Valor estimado'], rows)}`;
+    return `${reportTable(['Financiamiento','Proyectos','Viviendas','Valor estimado'], rows)}`;
   }
 
   function sectionCharts(){
@@ -1395,7 +1644,7 @@
         return img ? `<div class="r-chart"><h3>${escapeHtml(title)}</h3><img src="${img}"></div>` : '';
       }catch(e){ return ''; }
     }).join('');
-    return `<h2>10. Gráficos del dashboard</h2>${imgs || '<p>No se pudieron capturar los gráficos para la vista previa.</p>'}`;
+    return `${imgs || '<p>No se pudieron capturar los gráficos para la vista previa.</p>'}`;
   }
 
   function sectionDetail(){
@@ -1411,7 +1660,7 @@
       <td>${escapeHtml(d.tipoAlerta || 'Sin alerta')}</td>
       <td>${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
     </tr>`);
-    return `<h2>11. Matriz final filtrada</h2>${reportTable(['Segmento','Provincia','Cantón','Viviendas','Estado','Financiamiento','Valor','Tipo alerta','Próximas acciones'], rows)}`;
+    return `${reportTable(['Segmento','Provincia','Cantón','Viviendas','Estado','Financiamiento','Valor','Tipo alerta','Próximas acciones'], rows)}`;
   }
 
   function buildReportSections(){
@@ -1419,6 +1668,9 @@
       intro: sectionIntro,
       summary: sectionSummary,
       bySegment: sectionBySegment,
+      typologyHomes: sectionTypologyHomes,
+      massPlanWithAgreement: sectionMassPlanWithAgreement,
+      massPlanWithoutAgreement: sectionMassPlanWithoutAgreement,
       withAgreement: sectionWithAgreement,
       withoutAgreement: sectionWithoutAgreement,
       alerts: sectionAlerts,
@@ -1428,7 +1680,12 @@
       charts: sectionCharts,
       detail: sectionDetail
     };
-    return reportSelectedBlocks.map(id=>mapSections[id]?.()).filter(Boolean).join('');
+    return reportSelectedBlocks.map((id,idx)=>{
+      const block = REPORT_BLOCKS.find(b=>b.id===id);
+      const content = mapSections[id]?.();
+      if(!block || !content) return '';
+      return `<section class="r-section"><h2>${idx+1}. ${escapeHtml(block.title)}</h2>${content}</section>`;
+    }).filter(Boolean).join('');
   }
 
   async function imageToDataUri(src){
@@ -1473,6 +1730,7 @@
   .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:10px}
   .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:middle;font-size:10px}
   .r-table tr{page-break-inside:avoid;page-break-after:auto}
+  .r-total-row td{background:#dbeafe;font-weight:bold}
   .num{text-align:center;white-space:nowrap}
   .r-total{background:#dbeafe;border:1px solid #bfdbfe;padding:7px;text-align:center;font-weight:bold}
   .r-chart{page-break-inside:avoid;margin:8px 0 12px}
@@ -1486,12 +1744,12 @@
 </style>
 </head>
 <body>
-  <div class="r-header"><img src="${headerSrc}" onerror="this.style.display='none'"></div>
-  <div class="r-footer"><img src="${footerSrc}" onerror="this.style.display='none'"></div>
-  <main class="r-page">
+  <main class="r-page" id="reportExportRoot">
+    <div class="r-header"><img src="${headerSrc}" onerror="this.style.display='none'"></div>
     <h1>${escapeHtml(title)}</h1>
-    <div class="r-meta">Generado: ${escapeHtml(generated)}<br>Fuente: Dashboard de Proyectos Planificados</div>
+    <div class="r-meta">Generado: ${escapeHtml(generated)}<br>Fuente: ${escapeHtml(REPORT_SOURCE)}</div>
     ${sections || '<p>No se seleccionaron secciones para el reporte.</p>'}
+    <div class="r-footer"><img src="${footerSrc}" onerror="this.style.display='none'"></div>
   </main>
 </body>
 </html>`;
@@ -1502,7 +1760,7 @@
     $('reportPreview').innerHTML = '<div class="report-empty">Generando vista previa...</div>';
     const html = await buildReportHTML(false);
     const doc = $('reportPreview');
-    doc.innerHTML = html.match(/<main class="r-page">([\s\S]*?)<\/main>/)?.[1] || html;
+    doc.innerHTML = html.match(/<main class="r-page" id="reportExportRoot">([\s\S]*?)<\/main>/)?.[1] || html;
   }
 
   async function downloadCustomReportWord(){
@@ -1519,14 +1777,182 @@
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
 
+  async function waitForImages(root){
+    const imgs = [...root.querySelectorAll('img')];
+    await Promise.all(imgs.map(img=>img.complete ? Promise.resolve() : new Promise(resolve=>{
+      img.onload = resolve;
+      img.onerror = resolve;
+    })));
+  }
+
+  async function ensureHtml2Pdf(){
+    if(window.html2pdf) return true;
+    const sources = [
+      'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+      'https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js',
+      'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js'
+    ];
+    for(const src of sources){
+      try{
+        await new Promise((resolve,reject)=>{
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+        if(window.html2pdf) return true;
+      }catch(e){}
+    }
+    return false;
+  }
+
+  async function ensureJsPdf(){
+    if(window.jspdf?.jsPDF) return true;
+    await ensureHtml2Pdf();
+    if(window.jspdf?.jsPDF) return true;
+    const sources = [
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
+    ];
+    for(const src of sources){
+      try{
+        await new Promise((resolve,reject)=>{
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+        if(window.jspdf?.jsPDF) return true;
+      }catch(e){}
+    }
+    return false;
+  }
+
   async function printCustomReport(){
-    const html = await buildReportHTML(true);
-    const w = window.open('', '_blank');
-    if(!w){ alert('El navegador bloqueó la ventana emergente. Permite ventanas emergentes para descargar el PDF.'); return; }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    setTimeout(()=>{ w.focus(); w.print(); }, 500);
+    if(!await ensureJsPdf()){
+      alert('No se pudo cargar la librería de PDF. Verifica la conexión a internet e inténtalo nuevamente.');
+      return;
+    }
+    await updateReportPreview();
+    const target = $('reportPreview');
+    await waitForImages(target);
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const contentW = pageW - margin * 2;
+    const headerSrc = await imageToDataUri(REPORT_HEADER_IMAGE);
+    const footerSrc = await imageToDataUri(REPORT_FOOTER_IMAGE);
+    let y = 12;
+    let pageStarted = false;
+    const addDecor = () => {
+      try{ doc.addImage(headerSrc, 'JPEG', margin, 6, contentW, 24); }catch(e){}
+      try{ doc.addImage(footerSrc, 'JPEG', margin, pageH - 28, contentW, 22); }catch(e){}
+    };
+    const addPageIfNeeded = h => {
+      if(y + h <= pageH - 34) return;
+      doc.addPage();
+      addDecor();
+      y = 36;
+      pageStarted = true;
+    };
+    const addWrapped = (text, x, width, opts={}) => {
+      const size = opts.size || 9;
+      doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      doc.setTextColor(opts.color || '#111827');
+      const lines = doc.splitTextToSize(String(text || ''), width);
+      const lineH = size * 0.42;
+      addPageIfNeeded(lines.length * lineH + 2);
+      doc.text(lines, x, y, {align:opts.align || 'left'});
+      y += lines.length * lineH + (opts.after || 2.5);
+    };
+    addDecor();
+    y = 38;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    doc.setTextColor('#1f4e79');
+    doc.text(($('reportTitleInput').value || '').toUpperCase(), pageW / 2, y, {align:'center', maxWidth:contentW});
+    y += 10;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor('#475569');
+    doc.text(`Generado: ${new Date().toLocaleString('es-EC')}\nFuente: ${REPORT_SOURCE}`, pageW - margin, y, {align:'right'});
+    y += 10;
+
+    const drawTable = table => {
+      const rows = [...table.querySelectorAll('tr')].map(tr=>({
+        total: tr.classList.contains('r-total-row'),
+        cells: [...tr.children].map(c=>c.innerText.trim())
+      }));
+      if(!rows.length) return;
+      const cols = rows[0].cells.length || 1;
+      const colW = contentW / cols;
+      const fontSize = cols > 7 ? 5.4 : (cols > 5 ? 6.2 : 7);
+      rows.forEach((row, ri)=>{
+        const split = row.cells.map(cell=>doc.splitTextToSize(cell, colW - 2));
+        const rowH = Math.max(7, ...split.map(lines=>lines.length * fontSize * 0.35 + 3));
+        addPageIfNeeded(rowH + 1);
+        let x = margin;
+        row.cells.forEach((cell, ci)=>{
+          const isHead = ri === 0;
+          doc.setDrawColor('#d1d5db');
+          doc.setFillColor(isHead ? '#1f4e79' : (row.total ? '#dbeafe' : '#ffffff'));
+          doc.rect(x, y, colW, rowH, 'FD');
+          doc.setFont('helvetica', isHead || row.total ? 'bold' : 'normal');
+          doc.setFontSize(fontSize);
+          doc.setTextColor(isHead ? '#ffffff' : '#111827');
+          doc.text(split[ci], x + colW / 2, y + 4, {align:'center', maxWidth:colW - 2});
+          x += colW;
+        });
+        y += rowH;
+      });
+      y += 3;
+    };
+
+    [...target.children].forEach(node=>{
+      if(node.classList?.contains('r-header') || node.classList?.contains('r-footer') || node.tagName === 'H1' || node.classList?.contains('r-meta')) return;
+      if(node.classList?.contains('r-section')){
+        const h2 = node.querySelector('h2');
+        if(h2){
+          addPageIfNeeded(8);
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(10);
+          doc.setTextColor('#1f4e79');
+          doc.text(h2.innerText.trim(), margin, y);
+          y += 6;
+        }
+        [...node.children].forEach(child=>{
+          if(child.tagName === 'H2') return;
+          if(child.tagName === 'P') addWrapped(child.innerText.trim(), margin, contentW, {size:8.5, after:3});
+          if(child.tagName === 'TABLE') drawTable(child);
+          if(child.classList?.contains('r-chart')){
+            const title = child.querySelector('h3')?.innerText;
+            if(title) addWrapped(title, margin, contentW, {size:8,bold:true,color:'#1f4e79'});
+            const img = child.querySelector('img')?.src;
+            if(img){
+              addPageIfNeeded(55);
+              try{ doc.addImage(img, 'PNG', margin, y, contentW, 50); y += 54; }catch(e){}
+            }
+          }
+        });
+      }
+    });
+    const pageCount = doc.internal.getNumberOfPages();
+    for(let i=1;i<=pageCount;i++){
+      doc.setPage(i);
+      addDecor();
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(7);
+      doc.setTextColor('#475569');
+      doc.text(`Página ${i} de ${pageCount}`, pageW - margin, pageH - 7, {align:'right'});
+    }
+    const title = ($('reportTitleInput').value || 'reporte_proyectos_planificados').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'') || 'reporte_proyectos_planificados';
+    const stamp = new Date().toISOString().slice(0,10);
+    doc.save(`${title}_${stamp}.pdf`);
   }
 
   document.addEventListener('keydown', ev=>{
@@ -1537,10 +1963,31 @@
     const el = document.getElementById(id);
     if(el) el.addEventListener('input', updateReportPreview);
   });
+  const introEl = document.getElementById('reportIntroInput');
+  if(introEl) introEl.addEventListener('input', updateReportPreview);
+  function attachReportFilterSync(){
+    const pairs = [
+      ['reportComponentFilter','componentFilter',true],
+      ['reportCantonFilter','cantonFilter',false],
+      ['reportEstadoConvenioFilter','estadoConvenioFilter',false],
+      ['reportFinanciamientoFilter','financiamientoFilter',false],
+      ['reportTipoAlertaFilter','tipoAlertaFilter',false],
+      ['reportConvenioFilter','convenioFilter',false]
+    ];
+    pairs.forEach(([reportId, mainId, refreshCantons])=>{
+      const el = $(reportId);
+      if(!el) return;
+      el.addEventListener('change',()=>{
+        $(mainId).value = el.value;
+        if(refreshCantons) updateCantonOptions();
+        applyFilters();
+      });
+    });
+  }
+  attachReportFilterSync();
 
 
   loadData();
 </script>
 </body>
 </html>
-
