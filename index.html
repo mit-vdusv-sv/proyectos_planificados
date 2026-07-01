@@ -1449,7 +1449,7 @@ La información presentada corresponde al universo de registros filtrados por el
 
   function reportSnippet(value, max=260){
     const text = String(value || 'Sin dato').replace(/\s+/g,' ').trim();
-    return text.length > max ? text.slice(0, max - 3).trim() + '...' : text;
+    return text;
   }
 
   function reportWidthProfile(headers){
@@ -2375,12 +2375,6 @@ La información presentada corresponde al universo de registros filtrados por el
       const total = parts.reduce((a,b)=>a+b,0) || 100;
       return parts.map(v=>contentW * v / total);
     };
-    const clipLines = (lines, maxLines) => {
-      if(lines.length <= maxLines) return lines;
-      const clipped = lines.slice(0, maxLines);
-      clipped[maxLines - 1] = String(clipped[maxLines - 1]).replace(/\s+$/,'') + '...';
-      return clipped;
-    };
     const isLongColumn = header => {
       const n = normalizeText(header);
       return n.includes('ALERTA') || n.includes('ACCION') || n.includes('ESTADO') || n.includes('LUGAR');
@@ -2409,8 +2403,7 @@ La información presentada corresponde al universo de registros filtrados por el
       const fontSize = cols > 7 ? 5.7 : (cols > 5 ? 6.4 : 7.2);
       const lineH = fontSize * 0.36;
       const drawRow = (row, isHead=false) => {
-        const maxLines = isHead ? 2 : (cols > 7 ? 7 : 9);
-        const split = row.cells.map((cell, i)=>clipLines(doc.splitTextToSize(isHead ? pdfHeaderLabel(cell) : cell, widths[i] - 2.4), maxLines));
+        const split = row.cells.map((cell, i)=>doc.splitTextToSize(isHead ? pdfHeaderLabel(cell) : cell, widths[i] - 2.4));
         const rowH = Math.max(isHead ? 8 : 7.2, ...split.map(lines=>lines.length * lineH + 4.2));
         let x = margin;
         row.cells.forEach((cell, ci)=>{
@@ -2430,7 +2423,7 @@ La información presentada corresponde al universo de registros filtrados por el
       addPageIfNeeded(12);
       drawRow(rows[0], true);
       rows.slice(1).forEach(row=>{
-        const testSplit = row.cells.map((cell, i)=>clipLines(doc.splitTextToSize(cell, widths[i] - 2.4), cols > 7 ? 7 : 9));
+        const testSplit = row.cells.map((cell, i)=>doc.splitTextToSize(cell, widths[i] - 2.4));
         const rowH = Math.max(7.2, ...testSplit.map(lines=>lines.length * lineH + 4.2));
         if(y + rowH > pageBottom){
           doc.addPage();
