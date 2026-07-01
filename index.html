@@ -295,6 +295,10 @@
     .report-preview .r-table{width:100%;border-collapse:collapse;margin:6px 0 10px}
     .report-preview .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:10px;position:static}
     .report-preview .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:top;font-size:10px;white-space:normal}
+    .report-preview .r-table{table-layout:fixed}
+    .report-preview .r-table th,.report-preview .r-table td{overflow-wrap:break-word;word-break:normal;line-height:1.22}
+    .report-preview .r-table .long-text{text-align:left}
+    .report-preview .r-table .small-cell{font-size:9px}
     .report-preview .r-total-row td{background:#dbeafe;font-weight:bold}
     .report-preview .num{text-align:center;white-space:nowrap}
     .report-preview .r-total{background:#dbeafe;border:1px solid #bfdbfe;padding:7px;text-align:center;font-weight:bold}
@@ -1443,9 +1447,30 @@ La información presentada corresponde al universo de registros filtrados por el
     return parts.length ? parts.join(' | ') : 'Sin filtros aplicados';
   }
 
+  function reportSnippet(value, max=260){
+    const text = String(value || 'Sin dato').replace(/\s+/g,' ').trim();
+    return text.length > max ? text.slice(0, max - 3).trim() + '...' : text;
+  }
+
+  function reportWidthProfile(headers){
+    const key = headers.map(h=>normalizeText(h)).join('|');
+    if(key === 'INDICADOR|VALOR') return ['65%','35%'];
+    if(key.includes('SEGMENTO|PROVINCIA|CANTON|CONVENIO|VIVIENDAS|VALOR|ESTADO|ALERTA')) return ['7%','12%','13%','14%','8%','11%','11%','24%'];
+    if(key.includes('SEGMENTO|PROVINCIA|CANTON|TIPO ALERTA|ALERTA|PROXIMAS ACCIONES')) return ['7%','12%','14%','10%','31%','26%'];
+    if(key.includes('CONVENIO NRO') && key.includes('TOTAL VIVIENDAS')) return ['13%','18%','12%','9%','9%','10%','29%'];
+    if(key.includes('LUGAR DEL PLAN MASA PROYECTADO')) return ['30%','18%','15%','37%'];
+    if(key.includes('PROVINCIA|SEGMENTO|VIVIENDAS 2D')) return ['30%','12%','18%','18%','22%'];
+    if(key.includes('SEGMENTO|PROYECTOS|VIVIENDAS|BENEFICIARIOS INDIRECTOS')) return ['18%','18%','18%','23%','23%'];
+    if(key.includes('SEGMENTO|PROVINCIA|CANTON|VIVIENDAS|ESTADO|FINANCIAMIENTO|VALOR|TIPO ALERTA|PROXIMAS ACCIONES')) return ['7%','11%','12%','8%','10%','12%','10%','10%','20%'];
+    const each = (100 / Math.max(headers.length,1)).toFixed(2) + '%';
+    return headers.map(()=>each);
+  }
+
   function reportTable(headers, rows, widths=[]){
-    return `<table class="r-table">
-      <thead><tr>${headers.map((h,i)=>`<th${widths[i] ? ` style="width:${widths[i]}"` : ''}>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+    const finalWidths = widths.length ? widths : reportWidthProfile(headers);
+    return `<table class="r-table" data-widths="${finalWidths.map(w=>String(w).replace('%','')).join(',')}">
+      <colgroup>${finalWidths.map(w=>`<col style="width:${escapeHtml(w)}">`).join('')}</colgroup>
+      <thead style="display:table-header-group"><tr>${headers.map((h,i)=>`<th${finalWidths[i] ? ` style="width:${finalWidths[i]}"` : ''}>${escapeHtml(h)}</th>`).join('')}</tr></thead>
       <tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}">No hay datos para los filtros seleccionados.</td></tr>`}</tbody>
     </table>`;
   }
@@ -1476,7 +1501,7 @@ La información presentada corresponde al universo de registros filtrados por el
       <td class="num">${numFmt.format(d.totalViviendas)}</td>
       <td class="num">${moneyFmt.format(d.valor || 0)}</td>
       <td>${escapeHtml(d.estadoConvenio)}</td>
-      <td>${escapeHtml(d.alerta || 'Sin dato')}</td>
+      <td class="long-text">${escapeHtml(reportSnippet(d.alerta || 'Sin dato', 180))}</td>
     </tr>`;
   }
 
@@ -1547,7 +1572,7 @@ La información presentada corresponde al universo de registros filtrados por el
       <td class="num">${numFmt.format(d.viviendas2d || 0)}</td>
       <td class="num">${numFmt.format(d.viviendas3d || 0)}</td>
       <td class="num">${numFmt.format(d.totalViviendas || 0)}</td>
-      <td>${escapeHtml(massPlanStatus(d))}</td>
+      <td class="long-text">${escapeHtml(reportSnippet(massPlanStatus(d), 240))}</td>
     </tr>`);
     rows.push(`<tr class="r-total-row"><td colspan="3"><b>TOTAL</b></td><td class="num"><b>${numFmt.format(sum(data,'viviendas2d'))}</b></td><td class="num"><b>${numFmt.format(sum(data,'viviendas3d'))}</b></td><td class="num"><b>${numFmt.format(sum(data,'totalViviendas'))}</b></td><td></td></tr>`);
     return reportTable(['Convenio Nro.','Lugar','Presupuesto','Viviendas 2D','Viviendas 3D','Total viviendas','Estado'], rows);
@@ -1559,7 +1584,7 @@ La información presentada corresponde al universo de registros filtrados por el
       <td>${escapeHtml(`${d.provincia} - ${d.canton}`)}</td>
       <td class="num">${moneyFmt.format(d.valor || 0)}</td>
       <td class="num">${numFmt.format(d.totalViviendas || 0)}</td>
-      <td>${escapeHtml(massPlanStatus(d))}</td>
+      <td class="long-text">${escapeHtml(reportSnippet(massPlanStatus(d), 240))}</td>
     </tr>`);
     rows.push(`<tr class="r-total-row"><td colspan="2"><b>TOTAL</b></td><td class="num"><b>${numFmt.format(sum(data,'totalViviendas'))}</b></td><td></td></tr>`);
     return reportTable(['Lugar del plan masa proyectado','Presupuesto estimado','Viviendas aproximadas','Estado'], rows);
@@ -1589,8 +1614,8 @@ La información presentada corresponde al universo de registros filtrados por el
       <td>${escapeHtml(d.provincia)}</td>
       <td>${escapeHtml(d.canton)}</td>
       <td>${escapeHtml(d.tipoAlerta || 'Sin alerta')}</td>
-      <td>${escapeHtml(d.alerta || 'Sin dato')}</td>
-      <td>${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
+      <td class="long-text">${escapeHtml(reportSnippet(d.alerta || 'Sin dato', 320))}</td>
+      <td class="long-text">${escapeHtml(reportSnippet(d.proximasAcciones || 'Sin dato', 260))}</td>
     </tr>`);
     return `${reportTable(['Segmento','Provincia','Cantón','Tipo alerta','Alerta','Próximas acciones'], rows)}`;
   }
@@ -1658,7 +1683,7 @@ La información presentada corresponde al universo de registros filtrados por el
       <td>${escapeHtml(d.financiamiento)}</td>
       <td class="num">${moneyFmt.format(d.valor || 0)}</td>
       <td>${escapeHtml(d.tipoAlerta || 'Sin alerta')}</td>
-      <td>${escapeHtml(d.proximasAcciones || 'Sin dato')}</td>
+      <td class="long-text">${escapeHtml(reportSnippet(d.proximasAcciones || 'Sin dato', 220))}</td>
     </tr>`);
     return `${reportTable(['Segmento','Provincia','Cantón','Viviendas','Estado','Financiamiento','Valor','Tipo alerta','Próximas acciones'], rows)}`;
   }
@@ -1704,12 +1729,29 @@ La información presentada corresponde al universo de registros filtrados por el
     }
   }
 
-  async function buildReportHTML(embedImages=false){
+  async function buildReportHTML(embedImages=false, wordMode=false){
     const title = $('reportTitleInput').value || 'ESTADO DE PROYECTOS DE VIVIENDA DE INTERÉS SOCIAL';
     const headerSrc = embedImages ? await imageToDataUri(REPORT_HEADER_IMAGE) : REPORT_HEADER_IMAGE;
     const footerSrc = embedImages ? await imageToDataUri(REPORT_FOOTER_IMAGE) : REPORT_FOOTER_IMAGE;
     const generated = new Date().toLocaleString('es-EC');
     const sections = buildReportSections();
+    const wordSectionCss = wordMode ? `
+  @page WordReportSection{
+    size:21cm 29.7cm;
+    margin:34mm 14mm 28mm 14mm;
+    mso-header-margin:7mm;
+    mso-footer-margin:5mm;
+    mso-header:hReport;
+    mso-footer:fReport;
+  }
+  main.WordReportSection{page:WordReportSection;max-width:none;margin:0;background:white;padding:0}
+  .word-header,.word-footer{mso-element:header}
+  .word-footer{mso-element:footer}
+  .word-header p,.word-footer p{margin:0;text-align:center}
+  .word-header img{width:100%;height:auto;max-height:64pt}
+  .word-footer img{width:100%;height:auto;max-height:58pt}
+  .word-only{display:none}
+  ` : '';
     return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1719,22 +1761,27 @@ La información presentada corresponde al universo de registros filtrados por el
   @page{size:A4;margin:18mm 14mm 20mm 14mm}
   body{font-family:Arial, sans-serif;color:#111827;margin:0;background:white;font-size:11px;line-height:1.28}
   .r-page{max-width:760px;margin:0 auto;background:white;padding:0 0 18px}
-  .r-header img{width:100%;max-height:96px;object-fit:contain;display:block;margin:0 auto 10px}
-  .r-footer img{width:100%;max-height:88px;object-fit:contain;display:block;margin:18px auto 0}
+  .r-header img{width:100%;max-height:88px;object-fit:contain;display:block;margin:0 auto 10px}
+  .r-footer img{width:100%;max-height:76px;object-fit:contain;display:block;margin:18px auto 0}
   h1{text-align:center;color:#1f4e79;font-size:15px;margin:8px 0 18px;text-transform:uppercase}
   h2{color:#1f4e79;font-size:13px;margin:16px 0 8px;page-break-after:avoid}
   h3{font-size:11px;margin:8px 0 5px;color:#1f4e79}
   p{margin:6px 0;text-align:justify}
   .r-meta{font-size:10px;color:#475569;text-align:right;margin-bottom:8px}
-  .r-table{width:100%;border-collapse:collapse;margin:6px 0 10px;page-break-inside:auto}
-  .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:10px}
-  .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:middle;font-size:10px}
+  .r-section{page-break-inside:auto}
+  .r-table{width:100%;border-collapse:collapse;margin:8px 0 12px;page-break-inside:auto;table-layout:fixed;mso-table-lspace:0pt;mso-table-rspace:0pt}
+  .r-table thead{display:table-header-group}
+  .r-table th{background:#1f4e79;color:#fff;border:1px solid #d1d5db;padding:6px;text-align:center;font-size:9.5px;line-height:1.15}
+  .r-table td{border:1px solid #d1d5db;padding:6px;vertical-align:middle;font-size:9.5px;line-height:1.2;overflow-wrap:break-word;word-break:normal}
+  .r-table .long-text{text-align:left}
+  .r-table .small-cell{font-size:9px}
   .r-table tr{page-break-inside:avoid;page-break-after:auto}
   .r-total-row td{background:#dbeafe;font-weight:bold}
   .num{text-align:center;white-space:nowrap}
   .r-total{background:#dbeafe;border:1px solid #bfdbfe;padding:7px;text-align:center;font-weight:bold}
   .r-chart{page-break-inside:avoid;margin:8px 0 12px}
   .r-chart img{width:100%;max-height:310px;object-fit:contain;border:1px solid #e5e7eb}
+  ${wordSectionCss}
   @media print{
     body{font-size:10.5px}
     .r-header{position:fixed;top:0;left:0;right:0}
@@ -1744,12 +1791,14 @@ La información presentada corresponde al universo de registros filtrados por el
 </style>
 </head>
 <body>
-  <main class="r-page" id="reportExportRoot">
-    <div class="r-header"><img src="${headerSrc}" onerror="this.style.display='none'"></div>
+  ${wordMode ? `<div class="word-header" id="hReport" style="mso-element:header"><p><img src="${headerSrc}" alt="Encabezado institucional"></p></div>
+  <div class="word-footer" id="fReport" style="mso-element:footer"><p><img src="${footerSrc}" alt="Pie de página institucional"></p></div>` : ''}
+  <main class="r-page${wordMode ? ' WordReportSection' : ''}" id="reportExportRoot">
+    ${wordMode ? '' : `<div class="r-header"><img src="${headerSrc}" onerror="this.style.display='none'"></div>`}
     <h1>${escapeHtml(title)}</h1>
     <div class="r-meta">Generado: ${escapeHtml(generated)}<br>Fuente: ${escapeHtml(REPORT_SOURCE)}</div>
     ${sections || '<p>No se seleccionaron secciones para el reporte.</p>'}
-    <div class="r-footer"><img src="${footerSrc}" onerror="this.style.display='none'"></div>
+    ${wordMode ? '' : `<div class="r-footer"><img src="${footerSrc}" onerror="this.style.display='none'"></div>`}
   </main>
 </body>
 </html>`;
@@ -1764,7 +1813,7 @@ La información presentada corresponde al universo de registros filtrados por el
   }
 
   async function downloadCustomReportWord(){
-    const html = await buildReportHTML(true);
+    const html = await buildReportHTML(true, true);
     const blob = new Blob(['\ufeff' + html], {type:'application/msword;charset=utf-8'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1844,20 +1893,20 @@ La información presentada corresponde al universo de registros filtrados por el
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
     const contentW = pageW - margin * 2;
+    const pageTop = 34;
+    const pageBottom = pageH - 32;
     const headerSrc = await imageToDataUri(REPORT_HEADER_IMAGE);
     const footerSrc = await imageToDataUri(REPORT_FOOTER_IMAGE);
     let y = 12;
-    let pageStarted = false;
     const addDecor = () => {
-      try{ doc.addImage(headerSrc, 'JPEG', margin, 6, contentW, 24); }catch(e){}
-      try{ doc.addImage(footerSrc, 'JPEG', margin, pageH - 28, contentW, 22); }catch(e){}
+      try{ doc.addImage(headerSrc, 'JPEG', margin, 6, contentW, 21); }catch(e){}
+      try{ doc.addImage(footerSrc, 'JPEG', margin, pageH - 25, contentW, 18); }catch(e){}
     };
     const addPageIfNeeded = h => {
-      if(y + h <= pageH - 34) return;
+      if(y + h <= pageBottom) return;
       doc.addPage();
       addDecor();
-      y = 36;
-      pageStarted = true;
+      y = pageTop;
     };
     const addWrapped = (text, x, width, opts={}) => {
       const size = opts.size || 9;
@@ -1871,7 +1920,7 @@ La información presentada corresponde al universo de registros filtrados por el
       y += lines.length * lineH + (opts.after || 2.5);
     };
     addDecor();
-    y = 38;
+    y = 36;
     doc.setFont('helvetica','bold');
     doc.setFontSize(11);
     doc.setTextColor('#1f4e79');
@@ -1883,32 +1932,76 @@ La información presentada corresponde al universo de registros filtrados por el
     doc.text(`Generado: ${new Date().toLocaleString('es-EC')}\nFuente: ${REPORT_SOURCE}`, pageW - margin, y, {align:'right'});
     y += 10;
 
+    const tableColumnWidths = (table, cols) => {
+      const raw = String(table.dataset.widths || '').split(',').map(v=>Number(v)).filter(v=>Number.isFinite(v) && v > 0);
+      const parts = raw.length === cols ? raw : Array(cols).fill(100 / cols);
+      const total = parts.reduce((a,b)=>a+b,0) || 100;
+      return parts.map(v=>contentW * v / total);
+    };
+    const clipLines = (lines, maxLines) => {
+      if(lines.length <= maxLines) return lines;
+      const clipped = lines.slice(0, maxLines);
+      clipped[maxLines - 1] = String(clipped[maxLines - 1]).replace(/\s+$/,'') + '...';
+      return clipped;
+    };
+    const isLongColumn = header => {
+      const n = normalizeText(header);
+      return n.includes('ALERTA') || n.includes('ACCION') || n.includes('ESTADO') || n.includes('LUGAR');
+    };
+    const isNumericColumn = header => {
+      const n = normalizeText(header);
+      return n.includes('VIVIENDA') || n.includes('VALOR') || n.includes('PRESUPUESTO') || n.includes('TOTAL') || n.includes('PROYECTO');
+    };
+    const pdfHeaderLabel = header => {
+      const n = normalizeText(header);
+      if(n === 'SEGMENTO') return 'SEG.';
+      if(n === 'PROVINCIA') return 'PROV.';
+      if(n === 'VIVIENDAS') return 'VIV.';
+      return header;
+    };
+
     const drawTable = table => {
       const rows = [...table.querySelectorAll('tr')].map(tr=>({
         total: tr.classList.contains('r-total-row'),
         cells: [...tr.children].map(c=>c.innerText.trim())
       }));
       if(!rows.length) return;
+      const headers = rows[0].cells;
       const cols = rows[0].cells.length || 1;
-      const colW = contentW / cols;
-      const fontSize = cols > 7 ? 5.4 : (cols > 5 ? 6.2 : 7);
-      rows.forEach((row, ri)=>{
-        const split = row.cells.map(cell=>doc.splitTextToSize(cell, colW - 2));
-        const rowH = Math.max(7, ...split.map(lines=>lines.length * fontSize * 0.35 + 3));
-        addPageIfNeeded(rowH + 1);
+      const widths = tableColumnWidths(table, cols);
+      const fontSize = cols > 7 ? 5.7 : (cols > 5 ? 6.4 : 7.2);
+      const lineH = fontSize * 0.36;
+      const drawRow = (row, isHead=false) => {
+        const maxLines = isHead ? 2 : (cols > 7 ? 7 : 9);
+        const split = row.cells.map((cell, i)=>clipLines(doc.splitTextToSize(isHead ? pdfHeaderLabel(cell) : cell, widths[i] - 2.4), maxLines));
+        const rowH = Math.max(isHead ? 8 : 7.2, ...split.map(lines=>lines.length * lineH + 4.2));
         let x = margin;
         row.cells.forEach((cell, ci)=>{
-          const isHead = ri === 0;
           doc.setDrawColor('#d1d5db');
           doc.setFillColor(isHead ? '#1f4e79' : (row.total ? '#dbeafe' : '#ffffff'));
-          doc.rect(x, y, colW, rowH, 'FD');
+          doc.rect(x, y, widths[ci], rowH, 'FD');
           doc.setFont('helvetica', isHead || row.total ? 'bold' : 'normal');
           doc.setFontSize(fontSize);
           doc.setTextColor(isHead ? '#ffffff' : '#111827');
-          doc.text(split[ci], x + colW / 2, y + 4, {align:'center', maxWidth:colW - 2});
-          x += colW;
+          const align = isHead ? 'center' : (isLongColumn(headers[ci]) ? 'left' : (isNumericColumn(headers[ci]) ? 'center' : 'center'));
+          const textX = align === 'left' ? x + 1.5 : x + widths[ci] / 2;
+          doc.text(split[ci], textX, y + 4.2, {align, maxWidth:widths[ci] - 2.4});
+          x += widths[ci];
         });
         y += rowH;
+      };
+      addPageIfNeeded(12);
+      drawRow(rows[0], true);
+      rows.slice(1).forEach(row=>{
+        const testSplit = row.cells.map((cell, i)=>clipLines(doc.splitTextToSize(cell, widths[i] - 2.4), cols > 7 ? 7 : 9));
+        const rowH = Math.max(7.2, ...testSplit.map(lines=>lines.length * lineH + 4.2));
+        if(y + rowH > pageBottom){
+          doc.addPage();
+          addDecor();
+          y = pageTop;
+          drawRow(rows[0], true);
+        }
+        drawRow(row, false);
       });
       y += 3;
     };
@@ -1918,7 +2011,7 @@ La información presentada corresponde al universo de registros filtrados por el
       if(node.classList?.contains('r-section')){
         const h2 = node.querySelector('h2');
         if(h2){
-          addPageIfNeeded(8);
+          addPageIfNeeded(46);
           doc.setFont('helvetica','bold');
           doc.setFontSize(10);
           doc.setTextColor('#1f4e79');
