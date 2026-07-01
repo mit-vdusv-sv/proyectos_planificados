@@ -2394,36 +2394,56 @@ La información presentada corresponde al universo de registros filtrados por el
     const drawTable = table => {
       const rows = [...table.querySelectorAll('tr')].map(tr=>({
         total: tr.classList.contains('r-total-row'),
-        cells: [...tr.children].map(c=>c.innerText.trim())
+        cells: [...tr.children].map(c=>({
+          text: c.innerText.trim(),
+          span: Number(c.getAttribute('colspan')) || 1,
+          long: c.classList.contains('long-text'),
+          num: c.classList.contains('num')
+        }))
       }));
       if(!rows.length) return;
-      const headers = rows[0].cells;
-      const cols = rows[0].cells.length || 1;
+      const headers = rows[0].cells.map(c=>c.text);
+      const cols = rows[0].cells.reduce((n,c)=>n+c.span,0) || 1;
       const widths = tableColumnWidths(table, cols);
       const fontSize = cols > 7 ? 5.7 : (cols > 5 ? 6.4 : 7.2);
       const lineH = fontSize * 0.36;
       const drawRow = (row, isHead=false) => {
-        const split = row.cells.map((cell, i)=>doc.splitTextToSize(isHead ? pdfHeaderLabel(cell) : cell, widths[i] - 2.4));
+        let measureIndex = 0;
+        const split = row.cells.map(cell=>{
+          const cellW = widths.slice(measureIndex, measureIndex + cell.span).reduce((a,b)=>a+b,0);
+          const text = isHead ? pdfHeaderLabel(cell.text) : cell.text;
+          measureIndex += cell.span;
+          return doc.splitTextToSize(text, cellW - 2.4);
+        });
         const rowH = Math.max(isHead ? 8 : 7.2, ...split.map(lines=>lines.length * lineH + 4.2));
         let x = margin;
+        let colIndex = 0;
         row.cells.forEach((cell, ci)=>{
+          const cellW = widths.slice(colIndex, colIndex + cell.span).reduce((a,b)=>a+b,0);
           doc.setDrawColor('#d1d5db');
           doc.setFillColor(isHead ? '#1f4e79' : (row.total ? '#dbeafe' : '#ffffff'));
-          doc.rect(x, y, widths[ci], rowH, 'FD');
+          doc.rect(x, y, cellW, rowH, 'FD');
           doc.setFont('helvetica', isHead || row.total ? 'bold' : 'normal');
           doc.setFontSize(fontSize);
           doc.setTextColor(isHead ? '#ffffff' : '#111827');
-          const align = isHead ? 'center' : (isLongColumn(headers[ci]) ? 'left' : (isNumericColumn(headers[ci]) ? 'center' : 'center'));
-          const textX = align === 'left' ? x + 1.5 : x + widths[ci] / 2;
-          doc.text(split[ci], textX, y + 4.2, {align, maxWidth:widths[ci] - 2.4});
-          x += widths[ci];
+          const headerText = headers[colIndex] || '';
+          const align = isHead ? 'center' : (cell.long || isLongColumn(headerText) ? 'left' : (cell.num || isNumericColumn(headerText) ? 'center' : 'center'));
+          const textX = align === 'left' ? x + 1.5 : x + cellW / 2;
+          doc.text(split[ci], textX, y + 4.2, {align, maxWidth:cellW - 2.4});
+          x += cellW;
+          colIndex += cell.span;
         });
         y += rowH;
       };
       addPageIfNeeded(12);
       drawRow(rows[0], true);
       rows.slice(1).forEach(row=>{
-        const testSplit = row.cells.map((cell, i)=>doc.splitTextToSize(cell, widths[i] - 2.4));
+        let measureIndex = 0;
+        const testSplit = row.cells.map(cell=>{
+          const cellW = widths.slice(measureIndex, measureIndex + cell.span).reduce((a,b)=>a+b,0);
+          measureIndex += cell.span;
+          return doc.splitTextToSize(cell.text, cellW - 2.4);
+        });
         const rowH = Math.max(7.2, ...testSplit.map(lines=>lines.length * lineH + 4.2));
         if(y + rowH > pageBottom){
           doc.addPage();
