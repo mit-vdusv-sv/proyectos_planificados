@@ -1813,17 +1813,452 @@ La información presentada corresponde al universo de registros filtrados por el
   }
 
   async function downloadCustomReportWord(){
-    const html = await buildReportHTML(true, true);
-    const blob = new Blob(['\ufeff' + html], {type:'application/msword;charset=utf-8'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const stamp = new Date().toISOString().slice(0,10);
-    a.href = url;
-    a.download = `reporte_proyectos_planificados_${stamp}.doc`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    try{
+      await updateReportPreview();
+      const blob = await buildReportDocxPackage();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0,10);
+      a.href = url;
+      a.download = `reporte_proyectos_planificados_${stamp}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(err){
+      console.error('Error al generar Word:', err);
+      alert('No se pudo generar el Word: ' + (err?.message || err));
+    }
+  }
+
+  async function ensureDocx(){
+    if(window.docx?.Document && window.docx?.Packer) return true;
+    const moduleSources = [
+      'https://cdn.jsdelivr.net/npm/docx@8.5.0/+esm',
+      'https://esm.sh/docx@8.5.0'
+    ];
+    for(const src of moduleSources){
+      try{
+        const mod = await import(src);
+        window.docx = mod;
+        if(window.docx?.Document && window.docx?.Packer) return true;
+      }catch(e){}
+    }
+    const sources = [
+      'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js',
+      'https://unpkg.com/docx@8.5.0/build/index.umd.js'
+    ];
+    for(const src of sources){
+      try{
+        await new Promise((resolve,reject)=>{
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+        if(window.docx?.Document && window.docx?.Packer) return true;
+      }catch(e){}
+    }
+    return false;
+  }
+
+  async function imageToArrayBuffer(src){
+    const res = await fetch(src, {cache:'reload'});
+    if(!res.ok) throw new Error(`No se pudo cargar ${src}`);
+    return await res.arrayBuffer();
+  }
+
+  function docxText(text, opts={}){
+    return new docx.TextRun({
+      text: String(text || ''),
+      bold: opts.bold || false,
+      color: opts.color || '111827',
+      size: opts.size || 18
+    });
+  }
+
+  function docxParagraph(text, opts={}){
+    return new docx.Paragraph({
+      children: [docxText(text, opts)],
+      alignment: opts.alignment || docx.AlignmentType.LEFT,
+      spacing: {before: opts.before || 0, after: opts.after ?? 120, line: opts.line || 240},
+      heading: opts.heading
+    });
+  }
+
+  function docxCell(text, opts={}){
+    return new docx.TableCell({
+      width: opts.width ? {size: opts.width, type: docx.WidthType.DXA} : undefined,
+      columnSpan: opts.columnSpan || 1,
+      verticalAlign: docx.VerticalAlign.CENTER,
+      shading: opts.fill ? {type: docx.ShadingType.CLEAR, fill: opts.fill} : undefined,
+      margins: {top:90,bottom:90,left:90,right:90},
+      borders: {
+        top:{style:docx.BorderStyle.SINGLE,size:4,color:'D1D5DB'},
+        bottom:{style:docx.BorderStyle.SINGLE,size:4,color:'D1D5DB'},
+        left:{style:docx.BorderStyle.SINGLE,size:4,color:'D1D5DB'},
+        right:{style:docx.BorderStyle.SINGLE,size:4,color:'D1D5DB'}
+      },
+      children: [new docx.Paragraph({
+        children: [docxText(text, {bold: opts.bold, color: opts.color || '111827', size: opts.size || 15})],
+        alignment: opts.alignment || docx.AlignmentType.CENTER,
+        spacing: {before:0, after:0, line:210}
+      })]
+    });
+  }
+
+  function docxTableFromHtml(table){
+    const usableWidth = 10460;
+    const headerCells = [...table.querySelectorAll('thead th')].map(th=>th.innerText.trim());
+    const widthParts = String(table.dataset.widths || '').split(',').map(v=>Number(v)).filter(v=>Number.isFinite(v) && v > 0);
+    const parts = widthParts.length === headerCells.length ? widthParts : headerCells.map(()=>100 / Math.max(headerCells.length,1));
+    const total = parts.reduce((a,b)=>a+b,0) || 100;
+    const widths = parts.map(v=>Math.round(usableWidth * v / total));
+    const rows = [];
+    rows.push(new docx.TableRow({
+      tableHeader: true,
+      children: headerCells.map((h,i)=>docxCell(h, {width:widths[i], fill:'1f4e79', color:'FFFFFF', bold:true, size:14}))
+    }));
+    [...table.querySelectorAll('tbody tr')].forEach(tr=>{
+      let widthIndex = 0;
+      const cells = [...tr.children].map(td=>{
+        const span = Number(td.getAttribute('colspan')) || 1;
+        const width = widths.slice(widthIndex, widthIndex + span).reduce((a,b)=>a+b,0);
+        widthIndex += span;
+        const isLong = td.classList.contains('long-text');
+        const isNum = td.classList.contains('num');
+        return docxCell(td.innerText.trim(), {
+          width,
+          columnSpan: span,
+          fill: tr.classList.contains('r-total-row') ? 'dbeafe' : undefined,
+          bold: tr.classList.contains('r-total-row'),
+          alignment: isLong ? docx.AlignmentType.LEFT : (isNum ? docx.AlignmentType.CENTER : docx.AlignmentType.CENTER),
+          size: isLong ? 14 : 15
+        });
+      });
+      rows.push(new docx.TableRow({children: cells}));
+    });
+    return new docx.Table({
+      width: {size: usableWidth, type: docx.WidthType.DXA},
+      layout: docx.TableLayoutType.FIXED,
+      rows,
+      margins: {top:90,bottom:90,left:90,right:90}
+    });
+  }
+
+  async function buildReportDocx(){
+    const {
+      AlignmentType, Document, Footer, Header, ImageRun, Packer, PageNumber,
+      Paragraph, TextRun, UnderlineType
+    } = window.docx;
+    const headerData = await imageToArrayBuffer(REPORT_HEADER_IMAGE);
+    const footerData = await imageToArrayBuffer(REPORT_FOOTER_IMAGE);
+    const title = ($('reportTitleInput').value || 'ESTADO DE PROYECTOS DE VIVIENDA DE INTERÉS SOCIAL').toUpperCase();
+    const generated = new Date().toLocaleString('es-EC');
+    const children = [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: {before:260, after:220},
+        children: [new TextRun({text:title,bold:true,color:'1f4e79',size:24})]
+      }),
+      new Paragraph({
+        alignment: AlignmentType.RIGHT,
+        spacing: {after:240},
+        children: [new TextRun({text:`Generado: ${generated}\nFuente: ${REPORT_SOURCE}`, color:'475569', size:16})]
+      })
+    ];
+
+    [...$('reportPreview').children].forEach(node=>{
+      if(node.classList?.contains('r-header') || node.classList?.contains('r-footer') || node.tagName === 'H1' || node.classList?.contains('r-meta')) return;
+      if(!node.classList?.contains('r-section')) return;
+      const h2 = node.querySelector('h2');
+      if(h2) children.push(docxParagraph(h2.innerText.trim(), {bold:true,color:'1f4e79',size:22,before:180,after:120}));
+      [...node.children].forEach(child=>{
+        if(child.tagName === 'H2') return;
+        if(child.tagName === 'P') children.push(docxParagraph(child.innerText.trim(), {size:18, after:120}));
+        if(child.tagName === 'TABLE'){
+          children.push(docxTableFromHtml(child));
+          children.push(new Paragraph({children:[new TextRun({text:''})], spacing:{after:120}}));
+        }
+      });
+    });
+
+    const doc = new Document({
+      sections: [{
+        properties: {
+          page: {
+            size: {width:11906, height:16838},
+            margin: {top:1500, right:720, bottom:1250, left:720, header:220, footer:220}
+          }
+        },
+        headers: {
+          default: new Header({children:[
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: {after:0},
+              children: [new ImageRun({data: headerData, transformation: {width: 690, height: 144}})]
+            })
+          ]})
+        },
+        footers: {
+          default: new Footer({children:[
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: {before:0, after:0},
+              children: [new ImageRun({data: footerData, transformation: {width: 690, height: 168}})]
+            }),
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({text:'Página ', size:14, color:'475569'}),
+                new TextRun({children:[PageNumber.CURRENT], size:14, color:'475569'}),
+                new TextRun({text:' de ', size:14, color:'475569'}),
+                new TextRun({children:[PageNumber.TOTAL_PAGES], size:14, color:'475569'})
+              ]
+            })
+          ]})
+        },
+        children
+      }]
+    });
+    return await Packer.toBlob(doc);
+  }
+
+  function xmlEscape(value){
+    return String(value ?? '').replace(/[<>&"]/g, ch=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch]));
+  }
+
+  function utf8Bytes(text){
+    return new TextEncoder().encode(text);
+  }
+
+  function concatBytes(parts){
+    const total = parts.reduce((n,p)=>n+p.length,0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    parts.forEach(part=>{ out.set(part, offset); offset += part.length; });
+    return out;
+  }
+
+  const crcTable = (() => {
+    const table = new Uint32Array(256);
+    for(let n=0;n<256;n++){
+      let c = n;
+      for(let k=0;k<8;k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes){
+    let c = 0xffffffff;
+    for(let i=0;i<bytes.length;i++) c = crcTable[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  function zipHeader(size){
+    return new Uint8Array(size);
+  }
+
+  function set16(buf, offset, value){
+    buf[offset] = value & 255;
+    buf[offset + 1] = (value >>> 8) & 255;
+  }
+
+  function set32(buf, offset, value){
+    buf[offset] = value & 255;
+    buf[offset + 1] = (value >>> 8) & 255;
+    buf[offset + 2] = (value >>> 16) & 255;
+    buf[offset + 3] = (value >>> 24) & 255;
+  }
+
+  function zipDateTime(date=new Date()){
+    const time = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds()/2);
+    const dosDate = ((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+    return {time, dosDate};
+  }
+
+  function createZip(files){
+    const localParts = [];
+    const centralParts = [];
+    let offset = 0;
+    const {time, dosDate} = zipDateTime();
+    files.forEach(file=>{
+      const nameBytes = utf8Bytes(file.name);
+      const data = file.data instanceof Uint8Array ? file.data : utf8Bytes(file.data);
+      const crc = crc32(data);
+      const local = zipHeader(30);
+      set32(local,0,0x04034b50);
+      set16(local,4,20);
+      set16(local,6,0x0800);
+      set16(local,8,0);
+      set16(local,10,time);
+      set16(local,12,dosDate);
+      set32(local,14,crc);
+      set32(local,18,data.length);
+      set32(local,22,data.length);
+      set16(local,26,nameBytes.length);
+      set16(local,28,0);
+      localParts.push(local, nameBytes, data);
+
+      const central = zipHeader(46);
+      set32(central,0,0x02014b50);
+      set16(central,4,20);
+      set16(central,6,20);
+      set16(central,8,0x0800);
+      set16(central,10,0);
+      set16(central,12,time);
+      set16(central,14,dosDate);
+      set32(central,16,crc);
+      set32(central,20,data.length);
+      set32(central,24,data.length);
+      set16(central,28,nameBytes.length);
+      set16(central,30,0);
+      set16(central,32,0);
+      set16(central,34,0);
+      set16(central,36,0);
+      set32(central,38,0);
+      set32(central,42,offset);
+      centralParts.push(central, nameBytes);
+      offset += local.length + nameBytes.length + data.length;
+    });
+    const centralSize = centralParts.reduce((n,p)=>n+p.length,0);
+    const end = zipHeader(22);
+    set32(end,0,0x06054b50);
+    set16(end,8,files.length);
+    set16(end,10,files.length);
+    set32(end,12,centralSize);
+    set32(end,16,offset);
+    return new Blob([concatBytes([...localParts, ...centralParts, end])], {
+      type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    });
+  }
+
+  function wordRun(text, opts={}){
+    const color = opts.color ? `<w:color w:val="${opts.color}"/>` : '';
+    const bold = opts.bold ? '<w:b/>' : '';
+    const size = opts.size ? `<w:sz w:val="${opts.size}"/><w:szCs w:val="${opts.size}"/>` : '';
+    const preserve = /^\s|\s$|\n/.test(String(text || '')) ? ' xml:space="preserve"' : '';
+    return `<w:r><w:rPr>${bold}${color}${size}<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/></w:rPr><w:t${preserve}>${xmlEscape(text)}</w:t></w:r>`;
+  }
+
+  function wordParagraph(text, opts={}){
+    const jc = opts.align ? `<w:jc w:val="${opts.align}"/>` : '';
+    const spacing = `<w:spacing w:before="${opts.before || 0}" w:after="${opts.after ?? 120}" w:line="${opts.line || 240}" w:lineRule="auto"/>`;
+    const pPr = `<w:pPr>${spacing}${jc}</w:pPr>`;
+    const lines = String(text || '').split(/\n/);
+    const runs = lines.map((line,i)=>`${i ? '<w:r><w:br/></w:r>' : ''}${wordRun(line, opts)}`).join('');
+    return `<w:p>${pPr}${runs}</w:p>`;
+  }
+
+  function wordImageDrawing(relId, name, cx, cy){
+    return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="1" name="${xmlEscape(name)}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" name="${xmlEscape(name)}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`;
+  }
+
+  function wordHeaderXml(cx, cy){
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${wordImageDrawing('rIdHeaderImage','Encabezado institucional',cx,cy)}</w:r></w:p></w:hdr>`;
+  }
+
+  function wordFooterXml(cx, cy){
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>${wordImageDrawing('rIdFooterImage','Pie de página institucional',cx,cy)}</w:r></w:p></w:ftr>`;
+  }
+
+  function tableCellXml(text, opts={}){
+    const width = opts.width || 1400;
+    const span = opts.span && opts.span > 1 ? `<w:gridSpan w:val="${opts.span}"/>` : '';
+    const fill = opts.fill ? `<w:shd w:fill="${opts.fill}"/>` : '';
+    const vAlign = '<w:vAlign w:val="center"/>';
+    const tcPr = `<w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>${span}${fill}${vAlign}<w:tcMar><w:top w:w="90" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="90" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tcMar></w:tcPr>`;
+    return `<w:tc>${tcPr}${wordParagraph(text, {align:opts.align || 'center', bold:opts.bold, color:opts.color || '111827', size:opts.size || 15, after:0, line:210})}</w:tc>`;
+  }
+
+  function wordTableXml(table){
+    const usableWidth = 10460;
+    const headers = [...table.querySelectorAll('thead th')].map(th=>th.innerText.trim());
+    const raw = String(table.dataset.widths || '').split(',').map(v=>Number(v)).filter(v=>Number.isFinite(v) && v > 0);
+    const parts = raw.length === headers.length ? raw : headers.map(()=>100 / Math.max(headers.length,1));
+    const total = parts.reduce((a,b)=>a+b,0) || 100;
+    const widths = parts.map(v=>Math.round(usableWidth * v / total));
+    const grid = widths.map(w=>`<w:gridCol w:w="${w}"/>`).join('');
+    const borders = '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="D1D5DB"/><w:left w:val="single" w:sz="4" w:color="D1D5DB"/><w:bottom w:val="single" w:sz="4" w:color="D1D5DB"/><w:right w:val="single" w:sz="4" w:color="D1D5DB"/><w:insideH w:val="single" w:sz="4" w:color="D1D5DB"/><w:insideV w:val="single" w:sz="4" w:color="D1D5DB"/></w:tblBorders>';
+    const tblPr = `<w:tblPr><w:tblW w:w="${usableWidth}" w:type="dxa"/><w:tblLayout w:type="fixed"/>${borders}</w:tblPr>`;
+    const headRow = `<w:tr><w:trPr><w:tblHeader/></w:trPr>${headers.map((h,i)=>tableCellXml(h,{width:widths[i],fill:'1F4E79',color:'FFFFFF',bold:true,size:14})).join('')}</w:tr>`;
+    const bodyRows = [...table.querySelectorAll('tbody tr')].map(tr=>{
+      let widthIndex = 0;
+      const cells = [...tr.children].map(td=>{
+        const span = Number(td.getAttribute('colspan')) || 1;
+        const width = widths.slice(widthIndex, widthIndex + span).reduce((a,b)=>a+b,0) || widths[widthIndex] || 1200;
+        widthIndex += span;
+        return tableCellXml(td.innerText.trim(), {
+          width,
+          span,
+          fill: tr.classList.contains('r-total-row') ? 'DBEAFE' : undefined,
+          bold: tr.classList.contains('r-total-row'),
+          align: td.classList.contains('long-text') ? 'left' : 'center',
+          size: td.classList.contains('long-text') ? 14 : 15
+        });
+      }).join('');
+      return `<w:tr>${cells}</w:tr>`;
+    }).join('');
+    return `<w:tbl>${tblPr}<w:tblGrid>${grid}</w:tblGrid>${headRow}${bodyRows}</w:tbl>`;
+  }
+
+  async function getImageNaturalSize(src){
+    return await new Promise(resolve=>{
+      const img = new Image();
+      img.onload = () => resolve({width: img.naturalWidth || 800, height: img.naturalHeight || 160});
+      img.onerror = () => resolve({width: 800, height: 160});
+      img.src = src;
+    });
+  }
+
+  async function buildReportDocxPackage(){
+    const headerBytes = new Uint8Array(await imageToArrayBuffer(REPORT_HEADER_IMAGE));
+    const footerBytes = new Uint8Array(await imageToArrayBuffer(REPORT_FOOTER_IMAGE));
+    const headerSize = await getImageNaturalSize(REPORT_HEADER_IMAGE);
+    const footerSize = await getImageNaturalSize(REPORT_FOOTER_IMAGE);
+    const imageCx = 6645000;
+    const headerCy = Math.round(imageCx * headerSize.height / headerSize.width);
+    const footerCy = Math.round(imageCx * footerSize.height / footerSize.width);
+    const title = ($('reportTitleInput').value || 'ESTADO DE PROYECTOS DE VIVIENDA DE INTERÉS SOCIAL').toUpperCase();
+    const generated = new Date().toLocaleString('es-EC');
+    const body = [
+      wordParagraph(title, {align:'center', bold:true, color:'1F4E79', size:24, before:260, after:220}),
+      wordParagraph(`Generado: ${generated}\nFuente: ${REPORT_SOURCE}`, {align:'right', color:'475569', size:16, after:240})
+    ];
+    [...$('reportPreview').children].forEach(node=>{
+      if(node.classList?.contains('r-header') || node.classList?.contains('r-footer') || node.tagName === 'H1' || node.classList?.contains('r-meta')) return;
+      if(!node.classList?.contains('r-section')) return;
+      const h2 = node.querySelector('h2');
+      if(h2) body.push(wordParagraph(h2.innerText.trim(), {bold:true,color:'1F4E79',size:22,before:180,after:120}));
+      [...node.children].forEach(child=>{
+        if(child.tagName === 'H2') return;
+        if(child.tagName === 'P') body.push(wordParagraph(child.innerText.trim(), {size:18, after:120}));
+        if(child.tagName === 'TABLE'){
+          body.push(wordTableXml(child));
+          body.push(wordParagraph('', {after:120}));
+        }
+      });
+    });
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body.join('')}<w:sectPr><w:headerReference w:type="default" r:id="rIdHeader1"/><w:footerReference w:type="default" r:id="rIdFooter1"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="2500" w:right="720" w:bottom="2700" w:left="720" w:header="120" w:footer="120"/><w:cols w:space="720"/><w:docGrid w:linePitch="360"/></w:sectPr></w:body></w:document>`;
+    const documentRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdHeader1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>`;
+    const headerRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.jpg"/></Relationships>`;
+    const footerRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdFooterImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footer.jpg"/></Relationships>`;
+    const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>`;
+    const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdOfficeDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`;
+    return createZip([
+      {name:'[Content_Types].xml', data:contentTypes},
+      {name:'_rels/.rels', data:rootRels},
+      {name:'word/document.xml', data:documentXml},
+      {name:'word/_rels/document.xml.rels', data:documentRels},
+      {name:'word/header1.xml', data:wordHeaderXml(imageCx, headerCy)},
+      {name:'word/_rels/header1.xml.rels', data:headerRels},
+      {name:'word/footer1.xml', data:wordFooterXml(imageCx, footerCy)},
+      {name:'word/_rels/footer1.xml.rels', data:footerRels},
+      {name:'word/media/header.jpg', data:headerBytes},
+      {name:'word/media/footer.jpg', data:footerBytes}
+    ]);
   }
 
   async function waitForImages(root){
@@ -1893,14 +2328,16 @@ La información presentada corresponde al universo de registros filtrados por el
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
     const contentW = pageW - margin * 2;
-    const pageTop = 34;
-    const pageBottom = pageH - 32;
+    const headerPdfH = 36;
+    const footerPdfH = 36;
+    const pageTop = headerPdfH + 10;
+    const pageBottom = pageH - footerPdfH - 8;
     const headerSrc = await imageToDataUri(REPORT_HEADER_IMAGE);
     const footerSrc = await imageToDataUri(REPORT_FOOTER_IMAGE);
     let y = 12;
     const addDecor = () => {
-      try{ doc.addImage(headerSrc, 'JPEG', margin, 6, contentW, 21); }catch(e){}
-      try{ doc.addImage(footerSrc, 'JPEG', margin, pageH - 25, contentW, 18); }catch(e){}
+      try{ doc.addImage(headerSrc, 'JPEG', 0, 0, pageW, headerPdfH); }catch(e){}
+      try{ doc.addImage(footerSrc, 'JPEG', 0, pageH - footerPdfH, pageW, footerPdfH); }catch(e){}
     };
     const addPageIfNeeded = h => {
       if(y + h <= pageBottom) return;
@@ -1920,7 +2357,7 @@ La información presentada corresponde al universo de registros filtrados por el
       y += lines.length * lineH + (opts.after || 2.5);
     };
     addDecor();
-    y = 36;
+    y = pageTop;
     doc.setFont('helvetica','bold');
     doc.setFontSize(11);
     doc.setTextColor('#1f4e79');
